@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sun, 8 Nov 2026 07:35:06 +0000
+Subject: [PATCH 4/4] Telephony: Don't log every satellite config lookup
+
+SatelliteController asks TelephonyConfigUpdateInstallReceiver for the
+satellite config parser from dozens of places, and each lookup logged
+"getConfigParser: domain=satellite". On a dual SIM phone that ran at
+about 5 lines a second, around 300 a minute, in com.android.phone for as
+long as the phone was awake. The lookup returns a cached parser; only log
+when one is created.
+---
+ .../configupdate/TelephonyConfigUpdateInstallReceiver.java       | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/java/com/android/internal/telephony/configupdate/TelephonyConfigUpdateInstallReceiver.java b/src/java/com/android/internal/telephony/configupdate/TelephonyConfigUpdateInstallReceiver.java
+index 93283ad060..c491a57a89 100644
+--- a/src/java/com/android/internal/telephony/configupdate/TelephonyConfigUpdateInstallReceiver.java
++++ b/src/java/com/android/internal/telephony/configupdate/TelephonyConfigUpdateInstallReceiver.java
+@@ -597,7 +597,6 @@ public class TelephonyConfigUpdateInstallReceiver extends ConfigUpdateInstallRec
+     @Nullable
+     @Override
+     public ConfigParser getConfigParser(String domain) {
+-        Log.d(TAG, "getConfigParser: domain=" + domain);
+         ConfigParser parser = getInstance().mConfigParsers.computeIfAbsent(domain, d -> {
+             Log.d(TAG, "CreateNewConfigParser with domain " + d);
+             ConfigParser newParser = getNewConfigParser(
+-- 
+2.43.0
+
