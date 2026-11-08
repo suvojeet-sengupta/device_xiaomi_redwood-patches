@@ -1,0 +1,31 @@
+From 59af80ce7235f50082fae8fc7f38c17305ab51e4 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sun, 8 Nov 2026 17:28:06 +0000
+Subject: [PATCH] configs: lahaina: Turn off the battery listener
+
+The battery listener has the audio HAL follow the battery through the
+health HAL, which redwood doesn't need. Turn it off here, where lahaina
+sets it. A second assignment in the device's vendor.prop fails the
+build, because a vendor property can only be set once.
+
+Change-Id: I21f93866ae52a4b3c28fc7bca290b2d4c42fb643
+---
+ configs/lahaina/lahaina.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configs/lahaina/lahaina.mk b/configs/lahaina/lahaina.mk
+index 2f610e30..f010559e 100644
+--- a/configs/lahaina/lahaina.mk
++++ b/configs/lahaina/lahaina.mk
+@@ -441,7 +441,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
+ vendor.audio.feature.a2dp_offload.enable=true \
+ vendor.audio.feature.afe_proxy.enable=true \
+ vendor.audio.feature.anc_headset.enable=false \
+-vendor.audio.feature.battery_listener.enable=true \
++vendor.audio.feature.battery_listener.enable=false \
+ vendor.audio.feature.compr_cap.enable=false \
+ vendor.audio.feature.compress_in.enable=true \
+ vendor.audio.feature.compress_meta_data.enable=true \
+-- 
+2.43.0
+
