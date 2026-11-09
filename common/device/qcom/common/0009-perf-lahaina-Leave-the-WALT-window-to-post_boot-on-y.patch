@@ -1,0 +1,32 @@
+From b6a7047eba6adaa84cccace5d459a682fdf3d34a Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Mon, 9 Nov 2026 00:38:51 +0000
+Subject: [PATCH] perf: lahaina: Leave the WALT window to post_boot on yupik
+
+The perf HAL writes 5 ticks to sched_ravg_window_nr_ticks every time it
+starts, and it restarts on its own now and then. That overwrote the
+12 ms window post_boot sets, so it stayed at 20 ms. Nothing on yupik
+uses this resource (the FPS-based window update is lahaina only), so
+mark it unsupported there and the HAL leaves the node alone.
+
+Change-Id: I9bddd8e7d10b094e8f7dd924d0613170c5647aab
+---
+ vendor/perf/configs/lahaina/perf/targetresourceconfigs.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/vendor/perf/configs/lahaina/perf/targetresourceconfigs.xml b/vendor/perf/configs/lahaina/perf/targetresourceconfigs.xml
+index 1423aa52..d7403245 100644
+--- a/vendor/perf/configs/lahaina/perf/targetresourceconfigs.xml
++++ b/vendor/perf/configs/lahaina/perf/targetresourceconfigs.xml
+@@ -195,7 +195,7 @@ as anyway perflock calls of these resources would fail. -->
+         <Config MajorValue="0x3" MinorValue="0x26" Node="/proc/sys/walt/sched_window_stats_policy" Target="yupik" />
+         <Config MajorValue="0x3" MinorValue="0x27" Node="/proc/sys/walt/sched_many_wakeup_threshold" Target="yupik" />
+         <Config MajorValue="0x3" MinorValue="0x28" Node="/proc/sys/walt/sched_sync_hint_enable" Target="yupik" />
+-        <Config MajorValue="0x3" MinorValue="0x29" Node="/proc/sys/walt/sched_ravg_window_nr_ticks" Target="yupik" />
++        <Config MajorValue="0x3" MinorValue="0x29" Supported="no" Target="yupik" />
+         <Config MajorValue="0x3" MinorValue="0x2A" Supported="no" Target="yupik" /> <!-- sched_prefer_spread -->
+         <Config MajorValue="0x3" MinorValue="0x2C" Supported="no" Target="yupik" />
+         <Config MajorValue="0x3" MinorValue="0x2D" Supported="no" Target="yupik" />
+-- 
+2.43.0
+
