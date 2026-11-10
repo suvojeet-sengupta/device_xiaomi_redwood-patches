@@ -1,0 +1,52 @@
+From eea5bdedba57faaeb0c87d8ed18f5613e4ce3970 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Tue, 10 Nov 2026 17:16:34 +0000
+Subject: [PATCH] hal: Scale the voice volume onto the calibration's steps
+
+ro.config.vc_call_vol_steps sets how many steps Android's call volume
+is split into, and the same count was sent to the DSP. When the
+calibration holds fewer steps, everything above its last one plays at
+that one, so half of the volume range changed nothing.
+
+Read the DSP's step count from ro.vendor.audio.voice.dsp_vol_steps and
+scale the index onto it. The mute at the lowest volume still follows
+the Android steps. Without the property nothing changes.
+
+Change-Id: I7bd5310aaed51b586999f4fb042710bcc0c127cd
+---
+ hal/msm8974/platform.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/hal/msm8974/platform.c b/hal/msm8974/platform.c
+index 22c617b9..c6dda960 100644
+--- a/hal/msm8974/platform.c
++++ b/hal/msm8974/platform.c
+@@ -390,6 +390,7 @@ struct platform_data {
+     char cvd_version[MAX_CVD_VERSION_STRING_SIZE];
+     char snd_card_name[MAX_SND_CARD_STRING_SIZE];
+     int max_vol_index;
++    int dsp_vol_index;
+     int source_mic_type;
+     int max_mic_count;
+     bool is_dsd_supported;
+@@ -3459,6 +3460,8 @@ void *platform_init(struct audio_device *adev)
+     //set max volume step for voice call
+     property_get("ro.config.vc_call_vol_steps", value, TOSTRING(MAX_VOL_INDEX));
+     my_data->max_vol_index = atoi(value);
++    my_data->dsp_vol_index = property_get_int32("ro.vendor.audio.voice.dsp_vol_steps",
++                                                my_data->max_vol_index);
+ 
+     be_dai_name_table = NULL;
+ 
+@@ -6186,7 +6189,7 @@ int platform_set_voice_volume(void *platform, int volume)
+     // 100 -> 5, 80 -> 4, 60 -> 3, 40 -> 2, 20 -> 1  0 -> 0
+     // But this values don't changed in kernel. So, below change is need.
+     vol_index = (int)percent_to_index(volume, MIN_VOL_INDEX, my_data->max_vol_index);
+-    set_values[0] = vol_index;
++    set_values[0] = (int)percent_to_index(volume, MIN_VOL_INDEX, my_data->dsp_vol_index);
+ 
+     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+     if (!ctl) {
+-- 
+2.43.0
+
