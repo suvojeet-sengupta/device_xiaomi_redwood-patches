@@ -1,0 +1,35 @@
+From e927143a92ef08b4cdeb0846d75eb9fb44966235 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Tue, 10 Nov 2026 17:22:32 +0000
+Subject: [PATCH] camera: Keep privileged YUV and BLOB sizes as asked
+
+Since the bypass was limited to sizes with no listed match, a
+privileged app's YUV or BLOB stream is rounded to the nearest listed
+size again. Xiaomi's camera asks for 12000x9000 YUV in its 108 MP mode,
+a size the HAL lists only in its own vendor tags, so the stream became
+a second 4000x3000 one. The HAL had no place for it, returned
+max_buffers 0, and the session failed.
+
+Bypass rounding for privileged YUV and BLOB streams again, as QTI does,
+and keep it for every other format with no listed size.
+---
+ .../libcameraservice/utils/SessionConfigurationUtils.cpp       | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+index 880cad1b2c..8caa432cd3 100644
+--- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
++++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+@@ -217,7 +217,8 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
+         }
+     }
+ 
+-    if (isPriviledgedClient == true && bestWidth == -1) {
++    if (isPriviledgedClient == true && (bestWidth == -1 ||
++            format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB)) {
+         ALOGI("Bypass roundBufferDimensionNearest for privilegedClient "
+                 "width %d height %d for format %d", width, height, format);
+         bestWidth  = width;
+-- 
+2.43.0
+
