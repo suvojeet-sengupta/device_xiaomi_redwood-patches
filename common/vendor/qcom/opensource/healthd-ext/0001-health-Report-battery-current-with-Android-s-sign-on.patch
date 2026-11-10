@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Tue, 10 Nov 2026 07:36:59 +0000
+Subject: [PATCH] health: Report battery current with Android's sign on redwood
+
+The Xiaomi fuel gauge on redwood reports current_now negative while
+charging, the opposite of what BatteryManager expects, so battery apps
+show charging as discharge and the other way round.
+
+Flip the current in the health HAL for both getHealthInfo and the
+single-property getters. The kernel value stays raw because mi_thermald
+reads it directly.
+---
+ aidl/main.cpp | 31 ++++++++++++++++++++++++++++++-
+ 1 file changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/aidl/main.cpp b/aidl/main.cpp
+index 9f2f8ac..b852ab9 100644
+--- a/aidl/main.cpp
++++ b/aidl/main.cpp
+@@ -14,6 +14,35 @@
+ 
+ using aidl::android::hardware::health::HalHealthLoop;
+ using aidl::android::hardware::health::Health;
++using aidl::android::hardware::health::HealthInfo;
++
++namespace {
++// The Xiaomi fuel gauge reports current with the opposite sign to Android,
++// negative while charging. Flip it here so BatteryManager and apps see
++// positive while charging; the kernel value stays raw for mi_thermald.
++class RedwoodHealth : public Health {
++  public:
++    using Health::Health;
++
++    ndk::ScopedAStatus getCurrentNowMicroamps(int32_t* out) override {
++        auto ret = Health::getCurrentNowMicroamps(out);
++        if (ret.isOk()) *out = -*out;
++        return ret;
++    }
++
++    ndk::ScopedAStatus getCurrentAverageMicroamps(int32_t* out) override {
++        auto ret = Health::getCurrentAverageMicroamps(out);
++        if (ret.isOk()) *out = -*out;
++        return ret;
++    }
++
++  protected:
++    void UpdateHealthInfo(HealthInfo* info) override {
++        info->batteryCurrentMicroamps = -info->batteryCurrentMicroamps;
++        info->batteryCurrentAverageMicroamps = -info->batteryCurrentAverageMicroamps;
++    }
++};
++}  // namespace
+ 
+ #if !CHARGER_FORCE_NO_UI
+ using aidl::android::hardware::health::charger::ChargerCallback;
+@@ -80,7 +109,7 @@ int main(int argc, char** argv) {
+     auto config = std::make_unique<healthd_config>();
+     ::android::hardware::health::InitHealthdConfig(config.get());
+     qti_healthd_board_init(config.get());
+-    auto binder = ndk::SharedRefBase::make<Health>(gInstanceName, std::move(config));
++    auto binder = ndk::SharedRefBase::make<RedwoodHealth>(gInstanceName, std::move(config));
+ 
+     if (argc >= 2 && argv[1] == gChargerArg) {
+ #if !CHARGER_FORCE_NO_UI
+-- 
+2.43.0
+
