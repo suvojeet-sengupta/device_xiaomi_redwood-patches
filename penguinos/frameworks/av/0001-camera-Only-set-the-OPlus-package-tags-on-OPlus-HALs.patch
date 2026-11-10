@@ -1,0 +1,63 @@
+From f479df910c6dc27a062f9c10ea76eebf7d300fa0 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Tue, 10 Nov 2026 14:19:01 +0000
+Subject: [PATCH] camera: Only set the OPlus package tags on OPlus HALs
+
+The OPlus package and activity tags are written by ID, 0x80ec0000 and
+0x80ec0001, into every session. On other HALs that ID is one of their
+own tags, so Xiaomi's HAL got the package name in an unrelated session
+parameter and returned max_buffers 0 for a stream in the 108 MP mode,
+which cameraserver then rejected.
+
+Set them only when the HAL names that section com.oplus or com.oneplus.
+---
+ .../device3/Camera3Device.cpp                 | 31 +++++++++++++++----
+ 1 file changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index e09f059a2c..fed07d6be5 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -2822,14 +2822,33 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
+         modifiedSessionParams.update(clientNameHexId,
+                                      String8(pkgName.c_str()));
+ 
+-        // OnePlus / OPlus vendor tags for package and activity name
++        // OnePlus / OPlus vendor tags for package and activity name. Other HALs
++        // number their own tags differently, so only set these where the HAL
++        // names this section as an OPlus one.
+         uint32_t oplusPkgTag = 0x80ec0000;
+         uint32_t oplusActTag = 0x80ec0001;
+-        modifiedSessionParams.update(oplusPkgTag,
+-                                     String8(pkgName.c_str()));
+-        std::string actName = (pkgName == "com.oplus.camera") ? "com.oplus.camera.Camera" : pkgName;
+-        modifiedSessionParams.update(oplusActTag,
+-                                     String8(actName.c_str()));
++        const char* section = nullptr;
++        sp<VendorTagDescriptorCache> vCache = VendorTagDescriptorCache::getGlobalVendorTagCache();
++        if (vCache.get()) {
++            const camera_metadata_t *metaBuffer = sessionParams.getAndLock();
++            metadata_vendor_id_t vendorId = get_camera_metadata_vendor_id(metaBuffer);
++            sessionParams.unlock(metaBuffer);
++            section = vCache->getSectionName(oplusPkgTag, vendorId);
++        }
++        if (section == nullptr) {
++            sp<VendorTagDescriptor> vTags = VendorTagDescriptor::getGlobalVendorTagDescriptor();
++            if (vTags.get()) {
++                section = vTags->getSectionName(oplusPkgTag);
++            }
++        }
++        if (section != nullptr && (strncmp(section, "com.oplus", 9) == 0 ||
++                strncmp(section, "com.oneplus", 11) == 0)) {
++            modifiedSessionParams.update(oplusPkgTag,
++                                         String8(pkgName.c_str()));
++            std::string actName = (pkgName == "com.oplus.camera") ? "com.oplus.camera.Camera" : pkgName;
++            modifiedSessionParams.update(oplusActTag,
++                                         String8(actName.c_str()));
++        }
+     }
+     const camera_metadata_t *sessionBuffer = modifiedSessionParams.getAndLock();
+     res = mInterface->configureStreams(sessionBuffer, &config, bufferSizes, logId);
+-- 
+2.43.0
+
