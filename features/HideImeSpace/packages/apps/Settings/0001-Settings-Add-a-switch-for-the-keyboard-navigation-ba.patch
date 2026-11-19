@@ -1,0 +1,145 @@
+From a3d4b78cafcf9f7f66b5353a3a34264c03739bec Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Thu, 19 Nov 2026 12:21:12 +0000
+Subject: [PATCH] Settings: Add a switch for the keyboard navigation bar
+
+With gesture navigation the IME draws a bar with the back and keyboard
+switch buttons below the keyboard. The new switch in the gesture
+navigation settings turns that bar off by enabling
+ImeNavBarSpaceOverlay, which sets config_imeDrawsImeNavBar to false.
+
+The input method service and SystemUI pick up the overlay change on
+their own. The launcher only reads it when it creates the taskbar, so
+it is restarted.
+
+Based on the crDroid IME space switch.
+
+Change-Id: I33ab82fafa5de800a7fdbb651bce03292eade562
+---
+ res/values/custom_strings.xml                 |  4 +
+ res/xml/gesture_navigation_settings.xml       |  6 ++
+ .../ImeNavBarSpacePreferenceController.java   | 82 +++++++++++++++++++
+ 3 files changed, 92 insertions(+)
+ create mode 100644 src/com/android/settings/gestures/ImeNavBarSpacePreferenceController.java
+
+diff --git a/res/values/custom_strings.xml b/res/values/custom_strings.xml
+index 982a87f..d146c2e 100644
+--- a/res/values/custom_strings.xml
++++ b/res/values/custom_strings.xml
+@@ -492,4 +492,8 @@
+     <string name="spoof_show_system">Show system apps</string>
+     <string name="spoof_filter">Filter</string>
+     <string name="spoof_no_apps">No matching apps</string>
++
++    <!-- Gesture navigation: space below the keyboard -->
++    <string name="navbar_ime_space_title">Keyboard navigation bar</string>
++    <string name="navbar_ime_space_summary">Show the back and keyboard switch buttons below the keyboard. Turn off to remove that space.</string>
+ </resources>
+diff --git a/res/xml/gesture_navigation_settings.xml b/res/xml/gesture_navigation_settings.xml
+index d271985..a4817ff 100644
+--- a/res/xml/gesture_navigation_settings.xml
++++ b/res/xml/gesture_navigation_settings.xml
+@@ -34,6 +34,12 @@
+             settings:buttonPreferenceType="filled" />
+     </PreferenceCategory>
+ 
++    <SwitchPreferenceCompat
++        android:key="navbar_ime_space"
++        android:title="@string/navbar_ime_space_title"
++        android:summary="@string/navbar_ime_space_summary"
++        settings:controller="com.android.settings.gestures.ImeNavBarSpacePreferenceController" />
++
+     <PreferenceCategory
+         android:key="assistant_gesture_category"
+         android:persistent="false"
+diff --git a/src/com/android/settings/gestures/ImeNavBarSpacePreferenceController.java b/src/com/android/settings/gestures/ImeNavBarSpacePreferenceController.java
+new file mode 100644
+index 0000000..2b61d8b
+--- /dev/null
++++ b/src/com/android/settings/gestures/ImeNavBarSpacePreferenceController.java
+@@ -0,0 +1,82 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.gestures;
++
++import android.app.ActivityManager;
++import android.content.Context;
++import android.content.om.IOverlayManager;
++import android.content.om.OverlayInfo;
++import android.os.RemoteException;
++import android.os.ServiceManager;
++import android.os.UserHandle;
++import android.util.Log;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++public class ImeNavBarSpacePreferenceController extends TogglePreferenceController {
++
++    private static final String TAG = "ImeNavBarSpace";
++    private static final String OVERLAY_PACKAGE = "com.android.systemui.overlay.imenavbarspace";
++    // The launcher reads config_imeDrawsImeNavBar once when it creates the taskbar
++    private static final String[] LAUNCHER_PACKAGES = {
++            "com.google.android.apps.nexuslauncher",
++            "com.android.launcher3",
++    };
++
++    private final IOverlayManager mOverlayManager;
++
++    public ImeNavBarSpacePreferenceController(Context context, String key) {
++        super(context, key);
++        mOverlayManager = IOverlayManager.Stub.asInterface(
++                ServiceManager.getService(Context.OVERLAY_SERVICE));
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return getOverlayInfo() != null ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        final OverlayInfo info = getOverlayInfo();
++        return info == null || !info.isEnabled();
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        try {
++            mOverlayManager.setEnabled(OVERLAY_PACKAGE, !isChecked, UserHandle.USER_CURRENT);
++            if (!isChecked) {
++                mOverlayManager.setHighestPriority(OVERLAY_PACKAGE, UserHandle.USER_CURRENT);
++            }
++        } catch (RemoteException | IllegalStateException | SecurityException e) {
++            Log.e(TAG, "Failed to change " + OVERLAY_PACKAGE, e);
++            return false;
++        }
++
++        final ActivityManager am = mContext.getSystemService(ActivityManager.class);
++        for (String pkg : LAUNCHER_PACKAGES) {
++            am.forceStopPackage(pkg);
++        }
++        return true;
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_system;
++    }
++
++    private OverlayInfo getOverlayInfo() {
++        if (mOverlayManager == null) {
++            return null;
++        }
++        try {
++            return mOverlayManager.getOverlayInfo(OVERLAY_PACKAGE, UserHandle.USER_CURRENT);
++        } catch (RemoteException e) {
++            return null;
++        }
++    }
++}
+-- 
+2.43.0
+

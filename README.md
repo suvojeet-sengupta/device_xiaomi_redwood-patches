@@ -1,20 +1,22 @@
-# Source patches for redwood
+# Source patches for redwood on PixelOS
 
-Patches for the POCO X5 Pro 5G (redwood) on Paranoid Android and PenguinOS,
-kept out of [the device tree](https://github.com/suvojeet-sengupta/device_xiaomi_redwood)
-so that it only holds device files.
+Patches for the POCO X5 Pro 5G (redwood) on PixelOS 17, kept out of
+[the device tree](https://github.com/suvojeet-sengupta/device_xiaomi_redwood)
+so that it only holds device files. The `clo-6.12` branch has the Paranoid
+Android and PenguinOS patches.
 
-The redwood local manifest syncs this repo to `device/xiaomi/redwood-patches`.
-`envsetup.sh` then runs `vendorsetup.sh`, which applies the patches. There's
+The redwood local manifest syncs this branch to `device/xiaomi/redwood-patches`.
+`envsetup.sh` then runs `vendorsetup.sh`, which applies the patches. There is
 nothing to apply by hand, and patches already applied are skipped.
 
-- `common/` applies to both ROMs
-- `aospa/` and `penguinos/` apply to that ROM only
-- `features/<name>/` holds one feature, split into the same `common/`, `aospa/`
-  and `penguinos/`, applied after the fixes in name order
+- `common/` holds fixes
+- `features/<name>/` holds one feature, applied after the fixes in name order
 
-Under each of those, a patch sits at the path of the project it applies to, for
-example `common/frameworks/base/0001-*.patch`.
+A patch sits at the path of the project it applies to, for example
+`features/HideImeSpace/packages/apps/Settings/0001-*.patch`.
 
-The ROM is found from the repo manifest. Set `REDWOOD_ROM=aospa` or
-`REDWOOD_ROM=penguinos` to pick it by hand.
+## Features
+
+- `HideImeSpace`: a switch in Settings > System > Gestures > Navigation mode >
+  gesture settings that removes the back and keyboard switch bar below the
+  keyboard. From crDroid.

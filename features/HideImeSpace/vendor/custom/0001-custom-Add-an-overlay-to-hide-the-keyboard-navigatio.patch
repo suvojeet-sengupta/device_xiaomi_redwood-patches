@@ -1,0 +1,78 @@
+From ece9bee9f87a6fd64e05fa83fa6adc341ad597a2 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Thu, 19 Nov 2026 12:20:46 +0000
+Subject: [PATCH] custom: Add an overlay to hide the keyboard navigation space
+
+A dynamic overlay on android that sets config_imeDrawsImeNavBar to
+false. It ships disabled. When Settings enables it, gesture navigation
+no longer leaves the back and IME switcher bar below the keyboard, so
+the keyboard sits right above the gesture handle.
+
+Based on ImeNavBarSpaceOverlay from crDroid.
+
+Change-Id: I183b80558e59926987286adc48bb2e850d7e98cd
+---
+ config/common.mk                                     |  1 +
+ .../rro_packages/ImeNavBarSpaceOverlay/Android.bp    |  6 ++++++
+ .../ImeNavBarSpaceOverlay/AndroidManifest.xml        | 12 ++++++++++++
+ .../ImeNavBarSpaceOverlay/res/values/config.xml      |  4 ++++
+ 4 files changed, 23 insertions(+)
+ create mode 100644 overlay/rro_packages/ImeNavBarSpaceOverlay/Android.bp
+ create mode 100644 overlay/rro_packages/ImeNavBarSpaceOverlay/AndroidManifest.xml
+ create mode 100644 overlay/rro_packages/ImeNavBarSpaceOverlay/res/values/config.xml
+
+diff --git a/config/common.mk b/config/common.mk
+index aa75095..51b4594 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -73,6 +73,7 @@ endif
+ PRODUCT_PACKAGES += \
+     FrameworkOverlayCustom \
+     GoogleDialerOverlayCustom \
++    ImeNavBarSpaceOverlay \
+     SettingsOverlayCustom
+ 
+ # Quick Tap
+diff --git a/overlay/rro_packages/ImeNavBarSpaceOverlay/Android.bp b/overlay/rro_packages/ImeNavBarSpaceOverlay/Android.bp
+new file mode 100644
+index 0000000..6b399e2
+--- /dev/null
++++ b/overlay/rro_packages/ImeNavBarSpaceOverlay/Android.bp
+@@ -0,0 +1,6 @@
++runtime_resource_overlay {
++    name: "ImeNavBarSpaceOverlay",
++    certificate: "platform",
++    sdk_version: "current",
++    product_specific: true,
++}
+diff --git a/overlay/rro_packages/ImeNavBarSpaceOverlay/AndroidManifest.xml b/overlay/rro_packages/ImeNavBarSpaceOverlay/AndroidManifest.xml
+new file mode 100644
+index 0000000..188c1d5
+--- /dev/null
++++ b/overlay/rro_packages/ImeNavBarSpaceOverlay/AndroidManifest.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.systemui.overlay.imenavbarspace">
++
++    <overlay
++        android:targetPackage="android"
++        android:priority="2" />
++
++    <application
++        android:label="ImeNavBarSpaceOverlay"
++        android:hasCode="false" />
++</manifest>
+diff --git a/overlay/rro_packages/ImeNavBarSpaceOverlay/res/values/config.xml b/overlay/rro_packages/ImeNavBarSpaceOverlay/res/values/config.xml
+new file mode 100644
+index 0000000..6e09d6e
+--- /dev/null
++++ b/overlay/rro_packages/ImeNavBarSpaceOverlay/res/values/config.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <bool name="config_imeDrawsImeNavBar">false</bool>
++</resources>
+-- 
+2.43.0
+
