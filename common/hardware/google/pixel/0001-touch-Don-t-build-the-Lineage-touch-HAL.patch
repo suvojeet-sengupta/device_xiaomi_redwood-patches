@@ -1,0 +1,45 @@
+From cba4ead542cc3649ba7f68b3b26fe7e3d78c6daa Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Thu, 19 Nov 2026 07:48:29 +0000
+Subject: [PATCH] touch: Don't build the Lineage touch HAL
+
+vendor.lineage.touch-service.pixel needs the vendor.lineage.touch
+interface, which only LineageOS based trees have. On AOSPA and PenguinOS
+the module broke the Soong analysis; nothing there uses it.
+---
+ touch/Android.bp | 23 -----------------------
+ 1 file changed, 23 deletions(-)
+ delete mode 100644 touch/Android.bp
+
+diff --git a/touch/Android.bp b/touch/Android.bp
+deleted file mode 100644
+index c1980a0..0000000
+--- a/touch/Android.bp
++++ /dev/null
+@@ -1,23 +0,0 @@
+-//
+-// SPDX-FileCopyrightText: 2025 The LineageOS Project
+-// SPDX-License-Identifier: Apache-2.0
+-//
+-
+-cc_binary {
+-    name: "vendor.lineage.touch-service.pixel",
+-    init_rc: ["vendor.lineage.touch-service.pixel.rc"],
+-    vintf_fragments: ["vendor.lineage.touch-service.pixel.xml"],
+-    vendor: true,
+-    relative_install_path: "hw",
+-    srcs: [
+-        "GloveMode.cpp",
+-        "service.cpp",
+-    ],
+-    shared_libs: [
+-        "libbase",
+-        "liblog",
+-        "libbinder_ndk",
+-        "libutils",
+-        "vendor.lineage.touch-V1-ndk",
+-    ],
+-}
+-- 
+2.43.0
+
