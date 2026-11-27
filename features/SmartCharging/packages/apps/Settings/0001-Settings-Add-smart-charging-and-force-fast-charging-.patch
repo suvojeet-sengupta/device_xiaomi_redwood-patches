@@ -1,0 +1,190 @@
+From b2955028e40b4fc8fd855e1de20121f682938dbe Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 17:26:44 +0000
+Subject: [PATCH] Settings: Add smart charging and force fast charging switches
+
+Add two switches to the battery settings for charging modes the device
+sets from persist.sys.smart_charging and persist.sys.force_fast_charge.
+Smart charging stops at 80% to slow battery wear, force fast charging
+drops the thermal current limits. They pull against each other, so
+turning one on turns the other off. A switch only shows when the device
+sets a default for its property.
+
+Change-Id: I2feb72a4604d8a1c42a4aa15e6d9731b463f0736
+---
+ res/values/custom_strings.xml                 |  6 ++
+ res/xml/power_usage_summary.xml               | 13 ++++
+ .../ChargingModePreferenceController.java     | 76 +++++++++++++++++++
+ .../ForceFastChargePreferenceController.java  | 15 ++++
+ .../SmartChargingPreferenceController.java    | 15 ++++
+ 5 files changed, 125 insertions(+)
+ create mode 100644 src/com/android/settings/fuelgauge/ChargingModePreferenceController.java
+ create mode 100644 src/com/android/settings/fuelgauge/ForceFastChargePreferenceController.java
+ create mode 100644 src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
+
+diff --git a/res/values/custom_strings.xml b/res/values/custom_strings.xml
+index 9e05bb8..cd2365d 100644
+--- a/res/values/custom_strings.xml
++++ b/res/values/custom_strings.xml
+@@ -500,4 +500,10 @@
+     <!-- Battery: Low Power Standby -->
+     <string name="low_power_standby_title">Low power standby</string>
+     <string name="low_power_standby_summary">While the phone is idle, stop background apps from holding it awake or using the network. Messages pushed through Google Play services still arrive.</string>
++
++    <!-- Battery: charging modes -->
++    <string name="smart_charging_title">Smart charging</string>
++    <string name="smart_charging_summary">Stop charging at 80% to slow down battery wear. Turns off force fast charging.</string>
++    <string name="force_fast_charge_title">Force fast charging</string>
++    <string name="force_fast_charge_summary">Charge at full speed even while the phone is warm or in use. The phone gets hotter while charging. Turns off smart charging.</string>
+ </resources>
+diff --git a/res/xml/power_usage_summary.xml b/res/xml/power_usage_summary.xml
+index 362bf22..2bd8b07 100644
+--- a/res/xml/power_usage_summary.xml
++++ b/res/xml/power_usage_summary.xml
+@@ -99,6 +99,19 @@
+         android:title="@*android:string/charging_speed"
+         settings:controller="com.android.settings.fuelgauge.ChargingSpeedPreferenceController" />
+ 
++    <!-- Charging modes, only one of them at a time -->
++    <SwitchPreferenceCompat
++        android:key="smart_charging"
++        android:title="@string/smart_charging_title"
++        android:summary="@string/smart_charging_summary"
++        settings:controller="com.android.settings.fuelgauge.SmartChargingPreferenceController" />
++
++    <SwitchPreferenceCompat
++        android:key="force_fast_charge"
++        android:title="@string/force_fast_charge_title"
++        android:summary="@string/force_fast_charge_summary"
++        settings:controller="com.android.settings.fuelgauge.ForceFastChargePreferenceController" />
++
+     <com.android.settingslib.widget.FooterPreference
+         android:key="power_usage_footer"
+         android:title="@string/battery_footer_summary"
+diff --git a/src/com/android/settings/fuelgauge/ChargingModePreferenceController.java b/src/com/android/settings/fuelgauge/ChargingModePreferenceController.java
+new file mode 100644
+index 0000000..4987cd2
+--- /dev/null
++++ b/src/com/android/settings/fuelgauge/ChargingModePreferenceController.java
+@@ -0,0 +1,76 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.fuelgauge;
++
++import android.content.Context;
++import android.os.SystemProperties;
++
++import androidx.preference.Preference;
++import androidx.preference.PreferenceScreen;
++import androidx.preference.TwoStatePreference;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++/**
++ * A charging mode the device sets from a persist.sys property. Smart charging and force fast
++ * charging pull against each other, so turning one on turns the other off.
++ */
++public abstract class ChargingModePreferenceController extends TogglePreferenceController {
++
++    static final String KEY_SMART_CHARGING = "smart_charging";
++    static final String KEY_FORCE_FAST_CHARGE = "force_fast_charge";
++
++    static final String PROP_SMART_CHARGING = "persist.sys.smart_charging";
++    static final String PROP_FORCE_FAST_CHARGE = "persist.sys.force_fast_charge";
++
++    private final String mProperty;
++    private final String mOtherKey;
++    private final String mOtherProperty;
++    private PreferenceScreen mScreen;
++
++    ChargingModePreferenceController(Context context, String key, String property,
++            String otherKey, String otherProperty) {
++        super(context, key);
++        mProperty = property;
++        mOtherKey = otherKey;
++        mOtherProperty = otherProperty;
++    }
++
++    @Override
++    public void displayPreference(PreferenceScreen screen) {
++        super.displayPreference(screen);
++        mScreen = screen;
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        // The device tree sets a default for the property when it has the mode
++        return SystemProperties.get(mProperty).isEmpty() ? UNSUPPORTED_ON_DEVICE : AVAILABLE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        return SystemProperties.getBoolean(mProperty, false);
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        if (isChecked && SystemProperties.getBoolean(mOtherProperty, false)) {
++            SystemProperties.set(mOtherProperty, "0");
++            final Preference other = mScreen != null ? mScreen.findPreference(mOtherKey) : null;
++            if (other instanceof TwoStatePreference) {
++                ((TwoStatePreference) other).setChecked(false);
++            }
++        }
++        SystemProperties.set(mProperty, isChecked ? "1" : "0");
++        return true;
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_battery;
++    }
++}
+diff --git a/src/com/android/settings/fuelgauge/ForceFastChargePreferenceController.java b/src/com/android/settings/fuelgauge/ForceFastChargePreferenceController.java
+new file mode 100644
+index 0000000..97a9a16
+--- /dev/null
++++ b/src/com/android/settings/fuelgauge/ForceFastChargePreferenceController.java
+@@ -0,0 +1,15 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.fuelgauge;
++
++import android.content.Context;
++
++/** Force fast charging: the charger firmware drops the thermal current limits. */
++public class ForceFastChargePreferenceController extends ChargingModePreferenceController {
++
++    public ForceFastChargePreferenceController(Context context, String key) {
++        super(context, key, PROP_FORCE_FAST_CHARGE, KEY_SMART_CHARGING, PROP_SMART_CHARGING);
++    }
++}
+diff --git a/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java b/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
+new file mode 100644
+index 0000000..075191b
+--- /dev/null
++++ b/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
+@@ -0,0 +1,15 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.fuelgauge;
++
++import android.content.Context;
++
++/** Smart charging: the charger firmware stops at 80% to keep the battery healthy. */
++public class SmartChargingPreferenceController extends ChargingModePreferenceController {
++
++    public SmartChargingPreferenceController(Context context, String key) {
++        super(context, key, PROP_SMART_CHARGING, KEY_FORCE_FAST_CHARGE, PROP_FORCE_FAST_CHARGE);
++    }
++}
+-- 
+2.43.0
+

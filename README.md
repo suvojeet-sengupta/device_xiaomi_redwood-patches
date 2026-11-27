@@ -24,3 +24,9 @@ A patch sits at the path of the project it applies to, for example
   stops background apps from holding wakelocks or using the network while
   the phone is idle; Play services push still gets through. The device tree
   marks the feature supported and leaves it off by default.
+- `SmartCharging`: Smart charging and Force fast charging switches in
+  Settings > Battery. Smart charging has the charger stop at 80% to slow
+  battery wear; force fast charging drops the thermal current limits, so
+  the phone charges at full speed but runs hotter. Turning one on turns the
+  other off. The device tree writes them to the charger and restores them
+  after a reboot.
