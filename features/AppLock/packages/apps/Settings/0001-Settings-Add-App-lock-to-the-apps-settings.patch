@@ -1,0 +1,321 @@
+From f7403c624a66e5638325972693f60220c6e73046 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 18:55:05 +0000
+Subject: [PATCH] Settings: Add App lock to the apps settings
+
+Android 17 has App Lock, but the only way in is the launcher's long
+press menu, which Pixel Launcher doesn't have. Add an App lock page to
+Settings > Apps that lists the apps App Lock supports, each with a
+switch. Turning a switch either way asks for the fingerprint or screen
+lock, then sets the app's App Lock state; opening a locked app, and
+keeping its notifications and recents hidden, is the framework's own
+App Lock. The entry only shows when the build turns App Lock on, and
+the switches stay off until a screen lock is set.
+
+Change-Id: Iefff525922778bbb04024b23fc8f34dfbc30cca9
+---
+ AndroidManifest.xml                           |   5 +
+ res/values/app_lock_strings.xml               |  12 ++
+ res/xml/apps.xml                              |  11 ++
+ .../applock/AppLockPreferenceController.java  |  26 +++
+ .../applock/AppLockSettingsActivity.java      |  31 ++++
+ .../applock/AppLockSettingsFragment.java      | 159 ++++++++++++++++++
+ 6 files changed, 244 insertions(+)
+ create mode 100644 res/values/app_lock_strings.xml
+ create mode 100644 src/com/android/settings/applications/applock/AppLockPreferenceController.java
+ create mode 100644 src/com/android/settings/applications/applock/AppLockSettingsActivity.java
+ create mode 100644 src/com/android/settings/applications/applock/AppLockSettingsFragment.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index caa38c4..c248050 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -1032,6 +1032,11 @@
+                 android:value="true" />
+         </activity>
+ 
++        <activity android:name=".applications.applock.AppLockSettingsActivity"
++                  android:label="@string/app_lock_title"
++                  android:exported="false"
++                  android:theme="@style/Theme.Settings.NoActionBar" />
++
+         <activity android:name=".vpn2.AppExclusionActivity"
+                   android:label="@string/vpn_app_exclusion"
+                   android:featureFlag="android.provider.expose_vpn_app_exclusion_settings"
+diff --git a/res/values/app_lock_strings.xml b/res/values/app_lock_strings.xml
+new file mode 100644
+index 0000000..9f9ddec
+--- /dev/null
++++ b/res/values/app_lock_strings.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <!-- Apps: App lock -->
++    <string name="app_lock_title">App lock</string>
++    <string name="app_lock_summary">Ask for your fingerprint or screen lock to open the apps you choose</string>
++    <string name="app_lock_no_screen_lock">Set a screen lock to use App lock</string>
++    <string name="app_lock_confirm_lock">Lock <xliff:g id="app">%1$s</xliff:g></string>
++    <string name="app_lock_confirm_unlock">Unlock <xliff:g id="app">%1$s</xliff:g></string>
++</resources>
+diff --git a/res/xml/apps.xml b/res/xml/apps.xml
+index b687497..60eeb15 100644
+--- a/res/xml/apps.xml
++++ b/res/xml/apps.xml
+@@ -75,6 +75,17 @@
+             android:targetPackage="${applicationId}"/>
+     </Preference>
+ 
++    <Preference
++        android:key="app_lock"
++        android:title="@string/app_lock_title"
++        android:summary="@string/app_lock_summary"
++        android:order="-994"
++        settings:controller="com.android.settings.applications.applock.AppLockPreferenceController">
++        <intent
++            android:targetPackage="${applicationId}"
++            android:targetClass="com.android.settings.applications.applock.AppLockSettingsActivity"/>
++    </Preference>
++
+     <PreferenceCategory
+         android:key="dashboard_tile_placeholder"
+         android:order="10"/>
+diff --git a/src/com/android/settings/applications/applock/AppLockPreferenceController.java b/src/com/android/settings/applications/applock/AppLockPreferenceController.java
+new file mode 100644
+index 0000000..c8ffd58
+--- /dev/null
++++ b/src/com/android/settings/applications/applock/AppLockPreferenceController.java
+@@ -0,0 +1,26 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.applications.applock;
++
++import android.content.Context;
++
++import com.android.settings.core.BasePreferenceController;
++
++/** Shows the App lock entry when the build has Android's App Lock turned on. */
++public class AppLockPreferenceController extends BasePreferenceController {
++
++    public AppLockPreferenceController(Context context, String key) {
++        super(context, key);
++    }
++
++    static boolean isAppLockEnabled() {
++        return android.security.Flags.appLockApis() && android.security.Flags.appLockCore();
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return isAppLockEnabled() ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
++    }
++}
+diff --git a/src/com/android/settings/applications/applock/AppLockSettingsActivity.java b/src/com/android/settings/applications/applock/AppLockSettingsActivity.java
+new file mode 100644
+index 0000000..4543e6e
+--- /dev/null
++++ b/src/com/android/settings/applications/applock/AppLockSettingsActivity.java
+@@ -0,0 +1,31 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.applications.applock;
++
++import android.os.Bundle;
++
++import androidx.annotation.Nullable;
++
++import com.android.settings.R;
++import com.android.settingslib.collapsingtoolbar.CollapsingToolbarBaseActivity;
++
++/** Hosts the list of apps that App Lock can lock. */
++public class AppLockSettingsActivity extends CollapsingToolbarBaseActivity {
++
++    @Override
++    protected void onCreate(@Nullable Bundle savedInstanceState) {
++        super.onCreate(savedInstanceState);
++        if (!AppLockPreferenceController.isAppLockEnabled()) {
++            finish();
++            return;
++        }
++        if (savedInstanceState == null) {
++            getSupportFragmentManager()
++                    .beginTransaction()
++                    .replace(R.id.content_frame, new AppLockSettingsFragment())
++                    .commit();
++        }
++    }
++}
+diff --git a/src/com/android/settings/applications/applock/AppLockSettingsFragment.java b/src/com/android/settings/applications/applock/AppLockSettingsFragment.java
+new file mode 100644
+index 0000000..0aff20f
+--- /dev/null
++++ b/src/com/android/settings/applications/applock/AppLockSettingsFragment.java
+@@ -0,0 +1,159 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.applications.applock;
++
++import android.app.KeyguardManager;
++import android.content.Context;
++import android.content.Intent;
++import android.content.pm.ApplicationInfo;
++import android.content.pm.PackageManager;
++import android.content.pm.ResolveInfo;
++import android.hardware.biometrics.BiometricPrompt;
++import android.os.Bundle;
++import android.os.CancellationSignal;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.UserHandle;
++import android.util.Log;
++
++import androidx.preference.Preference;
++import androidx.preference.PreferenceFragmentCompat;
++import androidx.preference.PreferenceScreen;
++import androidx.preference.SwitchPreferenceCompat;
++
++import com.android.settings.R;
++import com.android.settings.Utils;
++
++import java.text.Collator;
++import java.util.ArrayList;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++
++/**
++ * Lists the launchable apps that support App Lock, each with a switch. Turning a switch either way
++ * asks for the fingerprint or screen lock first; locking itself is Android's App Lock.
++ */
++public class AppLockSettingsFragment extends PreferenceFragmentCompat {
++
++    private static final String TAG = "AppLockSettings";
++
++    private PackageManager mPm;
++    private CancellationSignal mCancel;
++
++    @Override
++    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
++        final Context context = requireContext();
++        mPm = context.getPackageManager();
++        final PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(context);
++        setPreferenceScreen(screen);
++        requireActivity().setTitle(R.string.app_lock_title);
++
++        final boolean secure = context.getSystemService(KeyguardManager.class).isDeviceSecure();
++        if (!secure) {
++            final Preference note = new Preference(context);
++            note.setTitle(R.string.app_lock_no_screen_lock);
++            note.setSelectable(false);
++            screen.addPreference(note);
++        }
++
++        for (ApplicationInfo app : getLockableApps()) {
++            final SwitchPreferenceCompat pref = new SwitchPreferenceCompat(context);
++            pref.setKey(app.packageName);
++            pref.setTitle(app.loadLabel(mPm));
++            pref.setIcon(app.loadIcon(mPm));
++            pref.setChecked(isLocked(app.packageName));
++            pref.setEnabled(secure);
++            pref.setPersistent(false);
++            pref.setOnPreferenceChangeListener((p, value) -> {
++                confirmThenSet((SwitchPreferenceCompat) p, (Boolean) value);
++                // The switch moves once the user is confirmed
++                return false;
++            });
++            screen.addPreference(pref);
++        }
++    }
++
++    @Override
++    public void onResume() {
++        super.onResume();
++        // A locked app may have been unlocked from elsewhere
++        final PreferenceScreen screen = getPreferenceScreen();
++        for (int i = 0; i < screen.getPreferenceCount(); i++) {
++            final Preference p = screen.getPreference(i);
++            if (p instanceof SwitchPreferenceCompat) {
++                ((SwitchPreferenceCompat) p).setChecked(isLocked(p.getKey()));
++            }
++        }
++    }
++
++    @Override
++    public void onPause() {
++        if (mCancel != null) {
++            mCancel.cancel();
++            mCancel = null;
++        }
++        super.onPause();
++    }
++
++    private List<ApplicationInfo> getLockableApps() {
++        final Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
++        final String self = requireContext().getPackageName();
++        final Set<String> seen = new HashSet<>();
++        final List<ApplicationInfo> apps = new ArrayList<>();
++        for (ResolveInfo ri : mPm.queryIntentActivities(launcher, 0)) {
++            final ApplicationInfo app = ri.activityInfo.applicationInfo;
++            if (self.equals(app.packageName) || !seen.add(app.packageName)) continue;
++            if (!app.isAppLockSupported) continue;
++            apps.add(app);
++        }
++        final Collator collator = Collator.getInstance();
++        apps.sort((a, b) -> collator.compare(
++                a.loadLabel(mPm).toString(), b.loadLabel(mPm).toString()));
++        return apps;
++    }
++
++    private boolean isLocked(String packageName) {
++        try {
++            return mPm.isPackageAppLockEnabled(packageName);
++        } catch (SecurityException | IllegalArgumentException e) {
++            Log.w(TAG, "Couldn't read the App Lock state of " + packageName, e);
++            return false;
++        }
++    }
++
++    private void confirmThenSet(SwitchPreferenceCompat pref, boolean lock) {
++        final Context context = requireContext();
++        final int userId = UserHandle.myUserId();
++        final BiometricPrompt prompt = new BiometricPrompt.Builder(context)
++                .setTitle(context.getString(lock ? R.string.app_lock_confirm_lock
++                        : R.string.app_lock_confirm_unlock, pref.getTitle()))
++                .setDeviceCredentialAllowed(true)
++                .setTextForDeviceCredential(null,
++                        Utils.getConfirmCredentialStringForUser(
++                                context, userId, Utils.getCredentialType(context, userId)),
++                        null)
++                .build();
++        final Handler handler = new Handler(Looper.getMainLooper());
++        mCancel = new CancellationSignal();
++        prompt.authenticate(mCancel, handler::post, new BiometricPrompt.AuthenticationCallback() {
++            @Override
++            public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
++                mCancel = null;
++                try {
++                    mPm.setPackageAppLockEnabled(pref.getKey(), lock);
++                } catch (SecurityException | IllegalArgumentException e) {
++                    Log.e(TAG, "Couldn't change the App Lock state of " + pref.getKey(), e);
++                }
++                pref.setChecked(isLocked(pref.getKey()));
++            }
++
++            @Override
++            public void onAuthenticationError(int errorCode, CharSequence errString) {
++                mCancel = null;
++            }
++        });
++    }
++}
+-- 
+2.43.0
+

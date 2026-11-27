@@ -1,0 +1,160 @@
+From cdd4b8a6bc8fabdff32e51434c890da8140354ee Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 18:53:16 +0000
+Subject: [PATCH] release: cp2a: Turn on App Lock
+
+Enable Android 17's App Lock: the PackageManager APIs and the core
+feature, which ask for the screen lock before a locked app opens and
+keep its notifications and recents hidden, along with removing the
+shortcuts and widgets of locked apps.
+
+Change-Id: If42184a2a14e81040a5d143375ef1b65ee999ce0
+---
+ .../cp2a/android.appwidget.flags/Android.bp   | 21 +++++++++++++++++++
+ ..._lock_widget_removal_flag_values.textproto |  6 ++++++
+ .../cp2a/android.content.pm/Android.bp        | 21 +++++++++++++++++++
+ ...ock_shortcut_removal_flag_values.textproto |  6 ++++++
+ .../aconfig/cp2a/android.security/Android.bp  | 21 +++++++++++++++++++
+ .../app_lock_apis_flag_values.textproto       |  6 ++++++
+ .../app_lock_core_flag_values.textproto       |  6 ++++++
+ 7 files changed, 87 insertions(+)
+ create mode 100644 release/aconfig/cp2a/android.appwidget.flags/Android.bp
+ create mode 100644 release/aconfig/cp2a/android.appwidget.flags/app_lock_widget_removal_flag_values.textproto
+ create mode 100644 release/aconfig/cp2a/android.content.pm/Android.bp
+ create mode 100644 release/aconfig/cp2a/android.content.pm/app_lock_shortcut_removal_flag_values.textproto
+ create mode 100644 release/aconfig/cp2a/android.security/Android.bp
+ create mode 100644 release/aconfig/cp2a/android.security/app_lock_apis_flag_values.textproto
+ create mode 100644 release/aconfig/cp2a/android.security/app_lock_core_flag_values.textproto
+
+diff --git a/release/aconfig/cp2a/android.appwidget.flags/Android.bp b/release/aconfig/cp2a/android.appwidget.flags/Android.bp
+new file mode 100644
+index 0000000..790f825
+--- /dev/null
++++ b/release/aconfig/cp2a/android.appwidget.flags/Android.bp
+@@ -0,0 +1,21 @@
++// Copyright 2025 Google Inc. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++aconfig_values {
++    name: "aconfig-values-lineage-cp2a-android.appwidget.flags-all",
++    package: "android.appwidget.flags",
++    srcs: [
++        "*.textproto",
++    ],
++}
+diff --git a/release/aconfig/cp2a/android.appwidget.flags/app_lock_widget_removal_flag_values.textproto b/release/aconfig/cp2a/android.appwidget.flags/app_lock_widget_removal_flag_values.textproto
+new file mode 100644
+index 0000000..4f0bca7
+--- /dev/null
++++ b/release/aconfig/cp2a/android.appwidget.flags/app_lock_widget_removal_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.appwidget.flags"
++  name: "app_lock_widget_removal"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/cp2a/android.content.pm/Android.bp b/release/aconfig/cp2a/android.content.pm/Android.bp
+new file mode 100644
+index 0000000..63d6a5c
+--- /dev/null
++++ b/release/aconfig/cp2a/android.content.pm/Android.bp
+@@ -0,0 +1,21 @@
++// Copyright 2025 Google Inc. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++aconfig_values {
++    name: "aconfig-values-lineage-cp2a-android.content.pm-all",
++    package: "android.content.pm",
++    srcs: [
++        "*.textproto",
++    ],
++}
+diff --git a/release/aconfig/cp2a/android.content.pm/app_lock_shortcut_removal_flag_values.textproto b/release/aconfig/cp2a/android.content.pm/app_lock_shortcut_removal_flag_values.textproto
+new file mode 100644
+index 0000000..c4155b5
+--- /dev/null
++++ b/release/aconfig/cp2a/android.content.pm/app_lock_shortcut_removal_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.content.pm"
++  name: "app_lock_shortcut_removal"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/cp2a/android.security/Android.bp b/release/aconfig/cp2a/android.security/Android.bp
+new file mode 100644
+index 0000000..fc97e1b
+--- /dev/null
++++ b/release/aconfig/cp2a/android.security/Android.bp
+@@ -0,0 +1,21 @@
++// Copyright 2025 Google Inc. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++aconfig_values {
++    name: "aconfig-values-lineage-cp2a-android.security-all",
++    package: "android.security",
++    srcs: [
++        "*.textproto",
++    ],
++}
+diff --git a/release/aconfig/cp2a/android.security/app_lock_apis_flag_values.textproto b/release/aconfig/cp2a/android.security/app_lock_apis_flag_values.textproto
+new file mode 100644
+index 0000000..1c00fbc
+--- /dev/null
++++ b/release/aconfig/cp2a/android.security/app_lock_apis_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.security"
++  name: "app_lock_apis"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/cp2a/android.security/app_lock_core_flag_values.textproto b/release/aconfig/cp2a/android.security/app_lock_core_flag_values.textproto
+new file mode 100644
+index 0000000..925631c
+--- /dev/null
++++ b/release/aconfig/cp2a/android.security/app_lock_core_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.security"
++  name: "app_lock_core"
++  state: ENABLED
++  permission: READ_ONLY
++}
+-- 
+2.43.0
+

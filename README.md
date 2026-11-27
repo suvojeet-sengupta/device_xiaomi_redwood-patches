@@ -17,6 +17,11 @@ A patch sits at the path of the project it applies to, for example
 
 ## Features
 
+- `AppLock`: turns on Android 17's own App Lock and adds an App lock page
+  to Settings > Apps for choosing the locked apps, since Pixel Launcher has
+  no lock option. A locked app asks for the fingerprint or screen lock when
+  it opens, and its notifications, recents, shortcuts and widgets stay
+  hidden.
 - `BatteryInfo`: a Battery information section in Settings > Battery with
   the battery's health, charge cycles, full charge and design capacity,
   temperature and voltage.
