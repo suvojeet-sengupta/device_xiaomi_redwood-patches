@@ -1,16 +1,16 @@
-From b2955028e40b4fc8fd855e1de20121f682938dbe Mon Sep 17 00:00:00 2001
+From 3cad493bd45cc61084e57cd6ae2b21cef17b447e Mon Sep 17 00:00:00 2001
 From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
 Date: Fri, 27 Nov 2026 17:26:44 +0000
 Subject: [PATCH] Settings: Add smart charging and force fast charging switches
 
 Add two switches to the battery settings for charging modes the device
 sets from persist.sys.smart_charging and persist.sys.force_fast_charge.
-Smart charging stops at 80% to slow battery wear, force fast charging
-drops the thermal current limits. They pull against each other, so
-turning one on turns the other off. A switch only shows when the device
-sets a default for its property.
+Smart charging is the charger firmware's own smart charging, force fast
+charging drops the thermal current limits. They pull against each
+other, so turning one on turns the other off. A switch only shows when
+the device sets a default for its property.
 
-Change-Id: I2feb72a4604d8a1c42a4aa15e6d9731b463f0736
+Change-Id: I0fc50f83649eb63eec59c31d61c683b186754dd3
 ---
  res/values/custom_strings.xml                 |  6 ++
  res/xml/power_usage_summary.xml               | 13 ++++
@@ -23,7 +23,7 @@ Change-Id: I2feb72a4604d8a1c42a4aa15e6d9731b463f0736
  create mode 100644 src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
 
 diff --git a/res/values/custom_strings.xml b/res/values/custom_strings.xml
-index 9e05bb8..cd2365d 100644
+index 9e05bb8..ef99f660 100644
 --- a/res/values/custom_strings.xml
 +++ b/res/values/custom_strings.xml
 @@ -500,4 +500,10 @@
@@ -33,7 +33,7 @@ index 9e05bb8..cd2365d 100644
 +
 +    <!-- Battery: charging modes -->
 +    <string name="smart_charging_title">Smart charging</string>
-+    <string name="smart_charging_summary">Stop charging at 80% to slow down battery wear. Turns off force fast charging.</string>
++    <string name="smart_charging_summary">Let the charger adapt how it charges to keep the battery healthy. Turns off force fast charging.</string>
 +    <string name="force_fast_charge_title">Force fast charging</string>
 +    <string name="force_fast_charge_summary">Charge at full speed even while the phone is warm or in use. The phone gets hotter while charging. Turns off smart charging.</string>
  </resources>
@@ -166,7 +166,7 @@ index 0000000..97a9a16
 +}
 diff --git a/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java b/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
 new file mode 100644
-index 0000000..075191b
+index 0000000..88ff0dc
 --- /dev/null
 +++ b/src/com/android/settings/fuelgauge/SmartChargingPreferenceController.java
 @@ -0,0 +1,15 @@
@@ -178,7 +178,7 @@ index 0000000..075191b
 +
 +import android.content.Context;
 +
-+/** Smart charging: the charger firmware stops at 80% to keep the battery healthy. */
++/** Smart charging: the charger firmware's own smart charging, on by default. */
 +public class SmartChargingPreferenceController extends ChargingModePreferenceController {
 +
 +    public SmartChargingPreferenceController(Context context, String key) {
