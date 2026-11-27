@@ -1,0 +1,174 @@
+From 2d3225619b2c3aedda5ea696517cd301ec778df7 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 19:17:19 +0000
+Subject: [PATCH] Settings: Add gesture navigation handle, back arrow and
+ sensitivity options
+
+Add switches to the gesture navigation settings that hide the
+navigation handle and the back gesture arrow, which SystemUI follows,
+and let the back sensitivity sliders run over every level in
+config_backGestureInsetScales instead of a fixed three, so a device can
+offer a more sensitive back gesture.
+
+Change-Id: I2ef9a48153ece30be9c2cbaef11c99658380c460
+---
+ res/values/gesture_extras_strings.xml         | 11 +++++
+ res/xml/gesture_navigation_settings.xml       | 12 ++++++
+ ...estureArrowHiddenPreferenceController.java | 41 +++++++++++++++++++
+ .../GestureNavigationSettingsFragment.java    |  2 +
+ ...ationHandleHiddenPreferenceController.java | 41 +++++++++++++++++++
+ 5 files changed, 107 insertions(+)
+ create mode 100644 res/values/gesture_extras_strings.xml
+ create mode 100644 src/com/android/settings/gestures/BackGestureArrowHiddenPreferenceController.java
+ create mode 100644 src/com/android/settings/gestures/NavigationHandleHiddenPreferenceController.java
+
+diff --git a/res/values/gesture_extras_strings.xml b/res/values/gesture_extras_strings.xml
+new file mode 100644
+index 0000000..147c4d5
+--- /dev/null
++++ b/res/values/gesture_extras_strings.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources>
++    <!-- Gesture navigation: handle and back arrow -->
++    <string name="navigation_handle_hidden_title">Hide navigation handle</string>
++    <string name="navigation_handle_hidden_summary">Hide the bar at the bottom of the screen. Swiping up still goes home.</string>
++    <string name="back_gesture_arrow_hidden_title">Hide back arrow</string>
++    <string name="back_gesture_arrow_hidden_summary">Don\'t draw the arrow while you swipe from the edge. The back gesture still works.</string>
++</resources>
+diff --git a/res/xml/gesture_navigation_settings.xml b/res/xml/gesture_navigation_settings.xml
+index a4817ff..138f6b0 100644
+--- a/res/xml/gesture_navigation_settings.xml
++++ b/res/xml/gesture_navigation_settings.xml
+@@ -40,6 +40,18 @@
+         android:summary="@string/navbar_ime_space_summary"
+         settings:controller="com.android.settings.gestures.ImeNavBarSpacePreferenceController" />
+ 
++    <SwitchPreferenceCompat
++        android:key="navigation_handle_hidden"
++        android:title="@string/navigation_handle_hidden_title"
++        android:summary="@string/navigation_handle_hidden_summary"
++        settings:controller="com.android.settings.gestures.NavigationHandleHiddenPreferenceController" />
++
++    <SwitchPreferenceCompat
++        android:key="back_gesture_arrow_hidden"
++        android:title="@string/back_gesture_arrow_hidden_title"
++        android:summary="@string/back_gesture_arrow_hidden_summary"
++        settings:controller="com.android.settings.gestures.BackGestureArrowHiddenPreferenceController" />
++
+     <PreferenceCategory
+         android:key="assistant_gesture_category"
+         android:persistent="false"
+diff --git a/src/com/android/settings/gestures/BackGestureArrowHiddenPreferenceController.java b/src/com/android/settings/gestures/BackGestureArrowHiddenPreferenceController.java
+new file mode 100644
+index 0000000..3ab4edc
+--- /dev/null
++++ b/src/com/android/settings/gestures/BackGestureArrowHiddenPreferenceController.java
+@@ -0,0 +1,41 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.gestures;
++
++import android.content.Context;
++import android.provider.Settings;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++/** Hides the arrow the back gesture draws; the gesture keeps working. */
++public class BackGestureArrowHiddenPreferenceController extends TogglePreferenceController {
++
++    private static final String SETTING = "back_gesture_arrow_hidden";
++
++    public BackGestureArrowHiddenPreferenceController(Context context, String key) {
++        super(context, key);
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return AVAILABLE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        return Settings.Secure.getInt(mContext.getContentResolver(), SETTING, 0) == 1;
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        return Settings.Secure.putInt(mContext.getContentResolver(), SETTING, isChecked ? 1 : 0);
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_system;
++    }
++}
+diff --git a/src/com/android/settings/gestures/GestureNavigationSettingsFragment.java b/src/com/android/settings/gestures/GestureNavigationSettingsFragment.java
+index b0f10b6..00d159a 100644
+--- a/src/com/android/settings/gestures/GestureNavigationSettingsFragment.java
++++ b/src/com/android/settings/gestures/GestureNavigationSettingsFragment.java
+@@ -151,6 +151,8 @@ public class GestureNavigationSettingsFragment extends DashboardFragment {
+         pref.setUpdatesContinuously(true);
+         pref.setHapticFeedbackMode(SeekBarPreference.HAPTIC_FEEDBACK_MODE_ON_TICKS);
+         pref.setSliderIncrement(1);
++        // One step per back sensitivity level the device defines
++        pref.setMax(mBackGestureInsetScales.length - 1);
+ 
+         final String settingsKey = key == LEFT_EDGE_SEEKBAR_KEY
+                 ? Settings.Secure.BACK_GESTURE_INSET_SCALE_LEFT
+diff --git a/src/com/android/settings/gestures/NavigationHandleHiddenPreferenceController.java b/src/com/android/settings/gestures/NavigationHandleHiddenPreferenceController.java
+new file mode 100644
+index 0000000..7187fbc
+--- /dev/null
++++ b/src/com/android/settings/gestures/NavigationHandleHiddenPreferenceController.java
+@@ -0,0 +1,41 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.gestures;
++
++import android.content.Context;
++import android.provider.Settings;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++/** Hides the gesture navigation handle. */
++public class NavigationHandleHiddenPreferenceController extends TogglePreferenceController {
++
++    private static final String SETTING = "navigation_handle_hidden";
++
++    public NavigationHandleHiddenPreferenceController(Context context, String key) {
++        super(context, key);
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return AVAILABLE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        return Settings.Secure.getInt(mContext.getContentResolver(), SETTING, 0) == 1;
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        return Settings.Secure.putInt(mContext.getContentResolver(), SETTING, isChecked ? 1 : 0);
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_system;
++    }
++}
+-- 
+2.43.0
+

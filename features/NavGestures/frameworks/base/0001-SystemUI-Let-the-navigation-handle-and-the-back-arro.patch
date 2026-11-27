@@ -1,0 +1,141 @@
+From 7416771de50b4fca049fbc1c6332af5f4967a2ab Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 19:16:27 +0000
+Subject: [PATCH] SystemUI: Let the navigation handle and the back arrow be
+ hidden
+
+Hide the gesture navigation handle while Settings.Secure
+navigation_handle_hidden is 1, following the setting as it changes, and
+skip drawing the back gesture arrow while back_gesture_arrow_hidden is
+1. The handle area and the back gesture itself keep working.
+
+Change-Id: Iefe3fcb26d804c950b6c0c7898ab07793716e853
+---
+ .../gestural/BackPanelController.kt           | 16 +++++++++-
+ .../views/NavigationBarView.java              | 30 ++++++++++++++++++-
+ 2 files changed, 44 insertions(+), 2 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/navigationbar/gestural/BackPanelController.kt b/packages/SystemUI/src/com/android/systemui/navigationbar/gestural/BackPanelController.kt
+index b628a68b7..2aa3a5f0b 100644
+--- a/packages/SystemUI/src/com/android/systemui/navigationbar/gestural/BackPanelController.kt
++++ b/packages/SystemUI/src/com/android/systemui/navigationbar/gestural/BackPanelController.kt
+@@ -21,6 +21,8 @@ import android.graphics.Color
+ import android.graphics.Paint
+ import android.graphics.Point
+ import android.os.Handler
++import android.os.UserHandle
++import android.provider.Settings
+ import android.util.Log
+ import android.util.MathUtils
+ import android.view.Gravity
+@@ -80,6 +82,9 @@ private const val POP_ON_INACTIVE_VELOCITY = -1.5f
+ 
+ private const val DEBUG = false
+ 
++/** Settings.Secure key, 1 hides the back gesture arrow. */
++private const val BACK_GESTURE_ARROW_HIDDEN = "back_gesture_arrow_hidden"
++
+ class BackPanelController
+ @AssistedInject
+ constructor(
+@@ -625,6 +630,14 @@ constructor(
+         windowManager.removeView(mView)
+     }
+ 
++    private fun isArrowHidden(): Boolean =
++        Settings.Secure.getIntForUser(
++            mView.context.contentResolver,
++            BACK_GESTURE_ARROW_HIDDEN,
++            0,
++            UserHandle.USER_CURRENT,
++        ) == 1
++
+     override fun setIsLeftPanel(isLeftPanel: Boolean) {
+         mView.isLeftPanel = isLeftPanel
+         layoutParams.gravity =
+@@ -897,7 +910,8 @@ constructor(
+                 mView.isVisible = false
+             }
+             GestureState.ENTRY -> {
+-                mView.isVisible = true
++                // The gesture still goes back, only the arrow stays hidden
++                mView.isVisible = !isArrowHidden()
+ 
+                 updateRestingArrowDimens()
+                 gestureEntryTime = systemClock.uptimeMillis()
+diff --git a/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBarView.java b/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBarView.java
+index 30927c3a7..6a245b2da 100644
+--- a/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBarView.java
++++ b/packages/SystemUI/src/com/android/systemui/navigationbar/views/NavigationBarView.java
+@@ -36,11 +36,16 @@ import android.annotation.DrawableRes;
+ import android.app.StatusBarManager.NavbarFlags;
+ import android.content.Context;
+ import android.content.res.Configuration;
++import android.database.ContentObserver;
+ import android.graphics.Canvas;
+ import android.graphics.Point;
+ import android.graphics.Rect;
+ import android.os.Bundle;
++import android.os.Handler;
++import android.os.Looper;
+ import android.os.RemoteException;
++import android.os.UserHandle;
++import android.provider.Settings;
+ import android.util.AttributeSet;
+ import android.util.Log;
+ import android.util.SparseArray;
+@@ -121,6 +126,18 @@ public class NavigationBarView extends FrameLayout {
+     private int mNavBarMode;
+     private boolean mImeDrawsImeNavBar;
+ 
++    /** Settings.Secure key, 1 hides the gesture navigation handle. */
++    private static final String NAVIGATION_HANDLE_HIDDEN = "navigation_handle_hidden";
++    private boolean mHideHomeHandle;
++    private final ContentObserver mHandleObserver =
++            new ContentObserver(new Handler(Looper.getMainLooper())) {
++                @Override
++                public void onChange(boolean selfChange) {
++                    updateHomeHandleHidden();
++                    updateNavButtonIcons();
++                }
++            };
++
+     private KeyButtonDrawable mBackIcon;
+     private KeyButtonDrawable mHomeDefaultIcon;
+     private KeyButtonDrawable mRecentIcon;
+@@ -666,7 +683,8 @@ public class NavigationBarView extends FrameLayout {
+         getBackButton().setVisibility(disableBack       ? View.INVISIBLE : View.VISIBLE);
+         getHomeButton().setVisibility(disableHome       ? View.INVISIBLE : View.VISIBLE);
+         getRecentsButton().setVisibility(disableRecent  ? View.INVISIBLE : View.VISIBLE);
+-        getHomeHandle().setVisibility(disableHomeHandle ? View.INVISIBLE : View.VISIBLE);
++        getHomeHandle().setVisibility(disableHomeHandle || mHideHomeHandle
++                ? View.INVISIBLE : View.VISIBLE);
+         notifyActiveTouchRegions();
+     }
+ 
+@@ -1097,12 +1115,22 @@ public class NavigationBarView extends FrameLayout {
+             mRotationButtonController.registerListeners(false /* registerRotationWatcher */);
+         }
+ 
++        getContext().getContentResolver().registerContentObserver(
++                Settings.Secure.getUriFor(NAVIGATION_HANDLE_HIDDEN), false, mHandleObserver,
++                UserHandle.USER_ALL);
++        updateHomeHandleHidden();
+         updateNavButtonIcons();
+     }
+ 
++    private void updateHomeHandleHidden() {
++        mHideHomeHandle = Settings.Secure.getIntForUser(getContext().getContentResolver(),
++                NAVIGATION_HANDLE_HIDDEN, 0, UserHandle.USER_CURRENT) == 1;
++    }
++
+     @Override
+     protected void onDetachedFromWindow() {
+         super.onDetachedFromWindow();
++        getContext().getContentResolver().unregisterContentObserver(mHandleObserver);
+         for (int i = 0; i < mButtonDispatchers.size(); ++i) {
+             mButtonDispatchers.valueAt(i).onDestroy();
+         }
+-- 
+2.43.0
+
