@@ -1,0 +1,103 @@
+From deea83c69b38de094ebfd3509eb6479ee54cfca4 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 18:39:39 +0000
+Subject: [PATCH] Settings: Add a touch game mode switch
+
+Add a Touch game mode switch below High touch polling rate in the
+display settings. It sets persist.sys.touch_game_mode, which the device
+applies to the touch controller, and only shows when the device sets a
+default for it.
+
+Change-Id: I335d05122320abd451e8e813ac69b9c1fbad15b5
+---
+ res/values/touch_modes_strings.xml            |  9 ++++
+ res/xml/display_settings.xml                  |  6 +++
+ .../TouchGameModePreferenceController.java    | 43 +++++++++++++++++++
+ 3 files changed, 58 insertions(+)
+ create mode 100644 res/values/touch_modes_strings.xml
+ create mode 100644 src/com/android/settings/display/TouchGameModePreferenceController.java
+
+diff --git a/res/values/touch_modes_strings.xml b/res/values/touch_modes_strings.xml
+new file mode 100644
+index 0000000..805a6d9
+--- /dev/null
++++ b/res/values/touch_modes_strings.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources>
++    <!-- Display: touch game mode -->
++    <string name="touch_game_mode_title">Touch game mode</string>
++    <string name="touch_game_mode_summary">Make the touchscreen respond faster and filter touches less, for games</string>
++</resources>
+diff --git a/res/xml/display_settings.xml b/res/xml/display_settings.xml
+index 51da40d..5951be1 100644
+--- a/res/xml/display_settings.xml
++++ b/res/xml/display_settings.xml
+@@ -254,6 +254,12 @@
+             android:defaultValue="false"
+             settings:controller="com.android.settings.custom.touch.HighTouchPollingRateSettingsPreferenceController" />
+ 
++        <SwitchPreferenceCompat
++            android:key="touch_game_mode"
++            android:title="@string/touch_game_mode_title"
++            android:summary="@string/touch_game_mode_summary"
++            settings:controller="com.android.settings.display.TouchGameModePreferenceController" />
++
+         <com.android.settings.custom.preference.SystemSettingSwitchPreference
+             android:key="high_touch_sensitivity_enable"
+             android:title="@string/high_touch_sensitivity_title"
+diff --git a/src/com/android/settings/display/TouchGameModePreferenceController.java b/src/com/android/settings/display/TouchGameModePreferenceController.java
+new file mode 100644
+index 0000000..68f7f43
+--- /dev/null
++++ b/src/com/android/settings/display/TouchGameModePreferenceController.java
+@@ -0,0 +1,43 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.display;
++
++import android.content.Context;
++import android.os.SystemProperties;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++/** Touch game mode, which the device applies from persist.sys.touch_game_mode. */
++public class TouchGameModePreferenceController extends TogglePreferenceController {
++
++    private static final String PROP = "persist.sys.touch_game_mode";
++
++    public TouchGameModePreferenceController(Context context, String key) {
++        super(context, key);
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        // The device tree sets a default for the property when it has the mode
++        return SystemProperties.get(PROP).isEmpty() ? UNSUPPORTED_ON_DEVICE : AVAILABLE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        return SystemProperties.getBoolean(PROP, false);
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        SystemProperties.set(PROP, isChecked ? "1" : "0");
++        return true;
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_display;
++    }
++}
+-- 
+2.43.0
+

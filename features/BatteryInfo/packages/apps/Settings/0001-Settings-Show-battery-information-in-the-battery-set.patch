@@ -1,0 +1,196 @@
+From f67cb46b46f8460159d16662a78a0c49dd034608 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 18:39:39 +0000
+Subject: [PATCH] Settings: Show battery information in the battery settings
+
+Add a Battery information section with the battery's health, charge
+cycles, full charge and design capacity, temperature and voltage, read
+from the battery's power supply node. Health is the full charge
+capacity against the design capacity. A line only shows when its node
+can be read.
+
+Change-Id: I8ac60e6f5515b854980c7c3d3c64800c7d135922
+---
+ res/values/battery_info_strings.xml           | 18 ++++
+ res/xml/power_usage_summary.xml               | 40 ++++++++
+ .../BatteryInfoPreferenceController.java      | 92 +++++++++++++++++++
+ 3 files changed, 150 insertions(+)
+ create mode 100644 res/values/battery_info_strings.xml
+ create mode 100644 src/com/android/settings/fuelgauge/BatteryInfoPreferenceController.java
+
+diff --git a/res/values/battery_info_strings.xml b/res/values/battery_info_strings.xml
+new file mode 100644
+index 0000000..558b3d0
+--- /dev/null
++++ b/res/values/battery_info_strings.xml
+@@ -0,0 +1,18 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <!-- Battery: battery information -->
++    <string name="battery_info_title">Battery information</string>
++    <string name="battery_info_health_title">Battery health</string>
++    <string name="battery_info_cycle_count_title">Charge cycles</string>
++    <string name="battery_info_full_capacity_title">Full charge capacity</string>
++    <string name="battery_info_design_capacity_title">Design capacity</string>
++    <string name="battery_info_temperature_title">Temperature</string>
++    <string name="battery_info_voltage_title">Voltage</string>
++    <string name="battery_info_percent"><xliff:g id="percent">%1$d</xliff:g>%%</string>
++    <string name="battery_info_mah"><xliff:g id="mah">%1$d</xliff:g> mAh</string>
++    <string name="battery_info_celsius"><xliff:g id="degrees">%1$.1f</xliff:g> °C</string>
++    <string name="battery_info_volts"><xliff:g id="volts">%1$.2f</xliff:g> V</string>
++</resources>
+diff --git a/res/xml/power_usage_summary.xml b/res/xml/power_usage_summary.xml
+index 2bd8b07..f86342a 100644
+--- a/res/xml/power_usage_summary.xml
++++ b/res/xml/power_usage_summary.xml
+@@ -83,6 +83,46 @@
+             settings:controller="com.android.settings.display.BatteryPercentagePreferenceController" />
+     </com.android.settingslib.widget.UntitledPreferenceCategory>
+ 
++    <PreferenceCategory
++        android:key="battery_info_category"
++        android:title="@string/battery_info_title">
++        <Preference
++            android:key="battery_info_health"
++            android:title="@string/battery_info_health_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++
++        <Preference
++            android:key="battery_info_cycle_count"
++            android:title="@string/battery_info_cycle_count_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++
++        <Preference
++            android:key="battery_info_full_capacity"
++            android:title="@string/battery_info_full_capacity_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++
++        <Preference
++            android:key="battery_info_design_capacity"
++            android:title="@string/battery_info_design_capacity_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++
++        <Preference
++            android:key="battery_info_temperature"
++            android:title="@string/battery_info_temperature_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++
++        <Preference
++            android:key="battery_info_voltage"
++            android:title="@string/battery_info_voltage_title"
++            android:selectable="false"
++            settings:controller="com.android.settings.fuelgauge.BatteryInfoPreferenceController" />
++    </PreferenceCategory>
++
+     <Preference
+         android:key="charging_control"
+         android:title="@string/charging_control_title"
+diff --git a/src/com/android/settings/fuelgauge/BatteryInfoPreferenceController.java b/src/com/android/settings/fuelgauge/BatteryInfoPreferenceController.java
+new file mode 100644
+index 0000000..4064c11
+--- /dev/null
++++ b/src/com/android/settings/fuelgauge/BatteryInfoPreferenceController.java
+@@ -0,0 +1,92 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.fuelgauge;
++
++import android.content.Context;
++
++import androidx.preference.Preference;
++
++import com.android.settings.R;
++import com.android.settings.core.BasePreferenceController;
++
++import java.io.BufferedReader;
++import java.io.FileReader;
++import java.io.IOException;
++
++/** One line of battery information, read from the battery's power supply node. */
++public class BatteryInfoPreferenceController extends BasePreferenceController {
++
++    private static final String BATTERY =
++            "/sys/devices/platform/soc/soc:qcom,pmic_glink/soc:qcom,pmic_glink:qcom,battery_charger"
++            + "/power_supply/battery/";
++
++    private static final String KEY_HEALTH = "battery_info_health";
++    private static final String KEY_CYCLE_COUNT = "battery_info_cycle_count";
++    private static final String KEY_FULL_CAPACITY = "battery_info_full_capacity";
++    private static final String KEY_DESIGN_CAPACITY = "battery_info_design_capacity";
++    private static final String KEY_TEMPERATURE = "battery_info_temperature";
++    private static final String KEY_VOLTAGE = "battery_info_voltage";
++
++    public BatteryInfoPreferenceController(Context context, String key) {
++        super(context, key);
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return getSummary() != null ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
++    }
++
++    @Override
++    public void updateState(Preference preference) {
++        super.updateState(preference);
++        preference.setSummary(getSummary());
++    }
++
++    @Override
++    public CharSequence getSummary() {
++        switch (getPreferenceKey()) {
++            case KEY_HEALTH: {
++                final long full = read("charge_full");
++                final long design = read("charge_full_design");
++                if (full <= 0 || design <= 0) return null;
++                return mContext.getString(R.string.battery_info_percent,
++                        Math.round(full * 100.0 / design));
++            }
++            case KEY_CYCLE_COUNT: {
++                final long cycles = read("cycle_count");
++                return cycles < 0 ? null : String.valueOf(cycles);
++            }
++            case KEY_FULL_CAPACITY:
++                return mah(read("charge_full"));
++            case KEY_DESIGN_CAPACITY:
++                return mah(read("charge_full_design"));
++            case KEY_TEMPERATURE: {
++                final long temp = read("temp");
++                return temp == Long.MIN_VALUE ? null
++                        : mContext.getString(R.string.battery_info_celsius, temp / 10.0);
++            }
++            case KEY_VOLTAGE: {
++                final long uv = read("voltage_now");
++                return uv <= 0 ? null
++                        : mContext.getString(R.string.battery_info_volts, uv / 1000000.0);
++            }
++            default:
++                return null;
++        }
++    }
++
++    private CharSequence mah(long uah) {
++        return uah <= 0 ? null : mContext.getString(R.string.battery_info_mah, uah / 1000);
++    }
++
++    /** The node's value, or Long.MIN_VALUE when it can't be read. */
++    private static long read(String node) {
++        try (BufferedReader reader = new BufferedReader(new FileReader(BATTERY + node))) {
++            return Long.parseLong(reader.readLine().trim());
++        } catch (IOException | NumberFormatException | NullPointerException e) {
++            return Long.MIN_VALUE;
++        }
++    }
++}
+-- 
+2.43.0
+

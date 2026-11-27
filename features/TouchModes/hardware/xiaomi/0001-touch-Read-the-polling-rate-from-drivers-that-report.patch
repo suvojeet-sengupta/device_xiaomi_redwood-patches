@@ -1,0 +1,31 @@
+From d7ee941a1b776baa96bf109891c01ac0408cf7eb Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 18:39:39 +0000
+Subject: [PATCH] touch: Read the polling rate from drivers that report it in
+ Hz
+
+The Goodix driver on redwood shows "480HZ" or "240HZ" in its
+switch_report_rate node rather than 1 or 0, so getEnabled() always
+read the high polling rate as off. Take "480HZ" as on.
+---
+ aidl/touch/HighTouchPollingRate.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/aidl/touch/HighTouchPollingRate.cpp b/aidl/touch/HighTouchPollingRate.cpp
+index 2c0e0c5..4bfc5eb 100644
+--- a/aidl/touch/HighTouchPollingRate.cpp
++++ b/aidl/touch/HighTouchPollingRate.cpp
+@@ -27,7 +27,9 @@ ndk::ScopedAStatus HighTouchPollingRate::getEnabled(bool* _aidl_return) {
+         return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+     }
+ 
+-    *_aidl_return = Trim(buf) == "1";
++    // Some drivers report the rate itself, "480HZ" against "240HZ"
++    buf = Trim(buf);
++    *_aidl_return = buf == "1" || buf == "480HZ";
+     return ndk::ScopedAStatus::ok();
+ }
+ 
+-- 
+2.43.0
+

@@ -17,6 +17,9 @@ A patch sits at the path of the project it applies to, for example
 
 ## Features
 
+- `BatteryInfo`: a Battery information section in Settings > Battery with
+  the battery's health, charge cycles, full charge and design capacity,
+  temperature and voltage.
 - `HideImeSpace`: a switch in Settings > System > Gestures > Navigation mode >
   gesture settings that removes the back and keyboard switch bar below the
   keyboard. From crDroid.
@@ -31,3 +34,6 @@ A patch sits at the path of the project it applies to, for example
   the phone charges at full speed but runs hotter. Turning one on turns the
   other off. The device tree writes them to the charger and restores them
   after a reboot.
+- `TouchModes`: makes High touch polling rate in Settings > Display read
+  the Goodix driver's "480HZ" right, and adds a Touch game mode switch
+  below it. The device tree applies both to the touch controller.
