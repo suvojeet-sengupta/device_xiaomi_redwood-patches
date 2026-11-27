@@ -1,0 +1,114 @@
+From 3bb9fea7e5bd086cec3b4c11880a3a7a88058706 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Fri, 27 Nov 2026 17:18:53 +0000
+Subject: [PATCH] Settings: Add a switch for Low Power Standby
+
+Low Power Standby blocks the wakelocks and network access of background
+apps while the device is idle, beyond what Doze does, but the framework
+only has a shell command for it on phones. Add a switch to the battery
+settings, shown when the device overlay marks it supported.
+
+Change-Id: I5d349f1235bfcc8b5364333d3d276905996d6fa8
+---
+ AndroidManifest.xml                           |  1 +
+ res/values/custom_strings.xml                 |  4 ++
+ res/xml/power_usage_summary.xml               |  6 +++
+ .../LowPowerStandbyPreferenceController.java  | 44 +++++++++++++++++++
+ 4 files changed, 55 insertions(+)
+ create mode 100644 src/com/android/settings/fuelgauge/LowPowerStandbyPreferenceController.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 23e503b..caa38c4 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -26,6 +26,7 @@
+     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+     <uses-permission android:name="android.permission.DEVICE_POWER" />
++    <uses-permission android:name="android.permission.MANAGE_LOW_POWER_STANDBY" />
+     <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
+     <uses-permission android:name="android.permission.CONTROL_UI_TRACING" />
+     <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" />
+diff --git a/res/values/custom_strings.xml b/res/values/custom_strings.xml
+index d146c2e..9e05bb8 100644
+--- a/res/values/custom_strings.xml
++++ b/res/values/custom_strings.xml
+@@ -496,4 +496,8 @@
+     <!-- Gesture navigation: space below the keyboard -->
+     <string name="navbar_ime_space_title">Keyboard navigation bar</string>
+     <string name="navbar_ime_space_summary">Show the back and keyboard switch buttons below the keyboard. Turn off to remove that space.</string>
++
++    <!-- Battery: Low Power Standby -->
++    <string name="low_power_standby_title">Low power standby</string>
++    <string name="low_power_standby_summary">While the phone is idle, stop background apps from holding it awake or using the network. Messages pushed through Google Play services still arrive.</string>
+ </resources>
+diff --git a/res/xml/power_usage_summary.xml b/res/xml/power_usage_summary.xml
+index e42ee4b..362bf22 100644
+--- a/res/xml/power_usage_summary.xml
++++ b/res/xml/power_usage_summary.xml
+@@ -66,6 +66,12 @@
+             android:title="@string/smart_battery_manager_title"
+             settings:controller="com.android.settings.fuelgauge.batterytip.BatteryManagerPreferenceController"
+             settings:keywords="@string/keywords_battery_adaptive_preferences" />
++
++        <SwitchPreferenceCompat
++            android:key="low_power_standby"
++            android:title="@string/low_power_standby_title"
++            android:summary="@string/low_power_standby_summary"
++            settings:controller="com.android.settings.fuelgauge.LowPowerStandbyPreferenceController" />
+     </com.android.settingslib.widget.UntitledPreferenceCategory>
+ 
+     <com.android.settingslib.widget.UntitledPreferenceCategory
+diff --git a/src/com/android/settings/fuelgauge/LowPowerStandbyPreferenceController.java b/src/com/android/settings/fuelgauge/LowPowerStandbyPreferenceController.java
+new file mode 100644
+index 0000000..1197220
+--- /dev/null
++++ b/src/com/android/settings/fuelgauge/LowPowerStandbyPreferenceController.java
+@@ -0,0 +1,44 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.settings.fuelgauge;
++
++import android.content.Context;
++import android.os.PowerManager;
++
++import com.android.settings.R;
++import com.android.settings.core.TogglePreferenceController;
++
++/** Switches Low Power Standby, which the framework has no phone UI for. */
++public class LowPowerStandbyPreferenceController extends TogglePreferenceController {
++
++    private final PowerManager mPowerManager;
++
++    public LowPowerStandbyPreferenceController(Context context, String key) {
++        super(context, key);
++        mPowerManager = context.getSystemService(PowerManager.class);
++    }
++
++    @Override
++    public int getAvailabilityStatus() {
++        return mPowerManager != null && mPowerManager.isLowPowerStandbySupported()
++                ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
++    }
++
++    @Override
++    public boolean isChecked() {
++        return mPowerManager.isLowPowerStandbyEnabled();
++    }
++
++    @Override
++    public boolean setChecked(boolean isChecked) {
++        mPowerManager.setLowPowerStandbyEnabled(isChecked);
++        return true;
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_battery;
++    }
++}
+-- 
+2.43.0
+

@@ -20,3 +20,7 @@ A patch sits at the path of the project it applies to, for example
 - `HideImeSpace`: a switch in Settings > System > Gestures > Navigation mode >
   gesture settings that removes the back and keyboard switch bar below the
   keyboard. From crDroid.
+- `LowPowerStandby`: a Low power standby switch in Settings > Battery. It
+  stops background apps from holding wakelocks or using the network while
+  the phone is idle; Play services push still gets through. The device tree
+  marks the feature supported and leaves it off by default.
