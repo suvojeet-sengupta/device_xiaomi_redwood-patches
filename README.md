@@ -41,8 +41,10 @@ A patch sits at the path of the project it applies to, for example
   with a PIN, pattern or password, the power menu stays closed and the
   internet, Wi-Fi, mobile data, Bluetooth, airplane mode, hotspot, location
   and NFC tiles ask for an unlock first.
-- `ShadeBlur`: a Disable blur switch in Settings > Display that turns off
-  the blur behind the notification panel and quick settings, live.
+- `ShadeBlur`: Disable all blur and Disable panel blur switches in
+  Settings > Display. The first turns off window blur everywhere (the
+  developer option's disable_window_blurs); the second only the
+  notification panel and quick settings blur. Both apply live.
 - `SmartCharging`: Smart charging and Force fast charging switches in
   Settings > Battery. Smart charging is the charger firmware's own smart
   charging and is on by default; force fast charging drops the thermal
