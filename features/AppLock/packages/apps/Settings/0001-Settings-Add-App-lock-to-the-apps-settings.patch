@@ -1,4 +1,4 @@
-From 7d75a5cd30e76b1a692a178a8c19f35efd3eaffb Mon Sep 17 00:00:00 2001
+From 6735574c249d7afb7d1aad2324ed6efaa5148771 Mon Sep 17 00:00:00 2001
 From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
 Date: Fri, 27 Nov 2026 18:55:05 +0000
 Subject: [PATCH] Settings: Add App lock to the apps settings
@@ -19,8 +19,8 @@ Change-Id: Iefff525922778bbb04024b23fc8f34dfbc30cca9
  res/xml/apps.xml                              |  11 ++
  .../applock/AppLockPreferenceController.java  |  32 ++++
  .../applock/AppLockSettingsActivity.java      |  31 ++++
- .../applock/AppLockSettingsFragment.java      | 159 ++++++++++++++++++
- 6 files changed, 250 insertions(+)
+ .../applock/AppLockSettingsFragment.java      | 168 ++++++++++++++++++
+ 6 files changed, 259 insertions(+)
  create mode 100644 res/values/app_lock_strings.xml
  create mode 100644 src/com/android/settings/applications/applock/AppLockPreferenceController.java
  create mode 100644 src/com/android/settings/applications/applock/AppLockSettingsActivity.java
@@ -159,10 +159,10 @@ index 0000000..4543e6e
 +}
 diff --git a/src/com/android/settings/applications/applock/AppLockSettingsFragment.java b/src/com/android/settings/applications/applock/AppLockSettingsFragment.java
 new file mode 100644
-index 0000000..0aff20f
+index 0000000..69d2adc
 --- /dev/null
 +++ b/src/com/android/settings/applications/applock/AppLockSettingsFragment.java
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,168 @@
 +/*
 + * SPDX-License-Identifier: Apache-2.0
 + */
@@ -269,8 +269,17 @@ index 0000000..0aff20f
 +        final Set<String> seen = new HashSet<>();
 +        final List<ApplicationInfo> apps = new ArrayList<>();
 +        for (ResolveInfo ri : mPm.queryIntentActivities(launcher, 0)) {
-+            final ApplicationInfo app = ri.activityInfo.applicationInfo;
-+            if (self.equals(app.packageName) || !seen.add(app.packageName)) continue;
++            final String pkg = ri.activityInfo.packageName;
++            if (self.equals(pkg) || !seen.add(pkg)) continue;
++            // isAppLockSupported is only filled in when GET_APP_LOCK_INFO is asked for
++            final ApplicationInfo app;
++            try {
++                app = mPm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(
++                        PackageManager.GET_APP_LOCK_INFO));
++            } catch (PackageManager.NameNotFoundException | SecurityException e) {
++                Log.w(TAG, "Couldn't read the App Lock info of " + pkg, e);
++                continue;
++            }
 +            if (!app.isAppLockSupported) continue;
 +            apps.add(app);
 +        }
