@@ -1,0 +1,156 @@
+From a8008eb7846a22a17177aa7b33f071cac575f81a Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 10:10:02 +0000
+Subject: [PATCH 2/2] SettingsProvider: Hide developer options and adb from
+ apps
+
+Apps read development_settings_enabled, adb_enabled and adb_wifi_enabled
+to refuse to run while developer options or USB debugging are on, and
+verifier_verify_adb_installs to tell whether the user has been in the
+developer options. For third-party apps that can't write secure
+settings, report the first three as 0 and the last as unset, on every
+read path (get, query, query all and call), so they all agree. System
+and shell callers keep the real values. Global hide_developer_status set
+to 0 turns this off.
+
+Change-Id: I33a021b87837945347f29fb0a392862cafea365f
+---
+ .../providers/settings/SettingsProvider.java  | 73 ++++++++++++++++++-
+ 1 file changed, 72 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java b/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
+index 8ddd1673e..f628f8868 100644
+--- a/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
++++ b/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
+@@ -439,6 +439,7 @@ public class SettingsProvider extends ContentProvider {
+             mHandlerThread.start();
+             handler = new Handler(mHandlerThread.getLooper());
+             mSettingsRegistry = new SettingsRegistry(mHandlerThread.getLooper());
++            sInstance = this;
+         }
+         SettingsState.cacheSystemPackageNamesAndSystemSignature(getContext());
+         synchronized (mLock) {
+@@ -1565,6 +1566,9 @@ public class SettingsProvider extends ContentProvider {
+                     continue;
+                 }
+                 String value = getEffectiveValue(setting, sReadableGlobalSettingsWithRedactedValue);
++                if (value == null) {
++                    continue;
++                }
+                 appendSettingToCursor(result, String.valueOf(setting.getId()), setting.getName(),
+                         value, String.valueOf(setting.isValuePreservedInRestore()));
+             }
+@@ -1768,6 +1772,9 @@ public class SettingsProvider extends ContentProvider {
+                 }
+ 
+                 String value = getEffectiveValue(setting, sReadableSecureSettingsWithRedactedValue);
++                if (value == null) {
++                    continue;
++                }
+                 appendSettingToCursor(result, String.valueOf(setting.getId()), setting.getName(),
+                         value, String.valueOf(setting.isValuePreservedInRestore()));
+             }
+@@ -2049,6 +2056,9 @@ public class SettingsProvider extends ContentProvider {
+                     continue;
+                 }
+                 String value = getEffectiveValue(setting, sReadableSystemSettingsWithRedactedValue);
++                if (value == null) {
++                    continue;
++                }
+                 appendSettingToCursor(result, String.valueOf(setting.getId()), setting.getName(),
+                         value, String.valueOf(setting.isValuePreservedInRestore()));
+             }
+@@ -2456,12 +2466,65 @@ public class SettingsProvider extends ContentProvider {
+         return mSettingsRegistry.getSettingsNamesLocked(settingsType, userId, deviceId);
+     }
+ 
++    /** Global setting, on unless set to 0: apps don't see developer options or adb as on. */
++    private static final String HIDE_DEVELOPER_STATUS = "hide_developer_status";
++
++    /** Settings that read as off ("0") to apps while developer status is hidden. */
++    private static final ArraySet<String> sDeveloperStatusSettings = new ArraySet<>(new String[] {
++            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
++            Settings.Global.ADB_ENABLED,
++            Settings.Global.ADB_WIFI_ENABLED,
++    });
++
++    /** Settings that read as unset to apps while developer status is hidden. */
++    private static final ArraySet<String> sDeveloperUnsetSettings = new ArraySet<>(new String[] {
++            Settings.Global.PACKAGE_VERIFIER_INCLUDE_ADB,
++    });
++
++    private static volatile SettingsProvider sInstance;
++
++    /**
++     * Whether the value of this setting is replaced for the calling app, because the user hides
++     * developer options and adb from apps. System and shell callers, and apps that may write
++     * secure settings, always get the real value.
++     */
++    private static boolean isDeveloperStatusHidden(String name) {
++        if (!sDeveloperStatusSettings.contains(name) && !sDeveloperUnsetSettings.contains(name)) {
++            return false;
++        }
++        final SettingsProvider provider = sInstance;
++        if (provider == null
++                || UserHandle.getAppId(Binder.getCallingUid()) < Process.FIRST_APPLICATION_UID) {
++            return false;
++        }
++        if (provider.getContext().checkCallingPermission(
++                Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
++            return false;
++        }
++        synchronized (provider.mLock) {
++            final Setting hide = provider.mSettingsRegistry.getSettingLocked(
++                    SETTINGS_TYPE_GLOBAL, UserHandle.USER_SYSTEM, Context.DEVICE_ID_DEFAULT,
++                    HIDE_DEVELOPER_STATUS);
++            return hide == null || hide.isNull() || !"0".equals(hide.getValue());
++        }
++    }
++
++    /** The value an app sees for a hidden developer setting: "0", or null for unset ones. */
++    @Nullable
++    private static String hiddenDeveloperValue(String name) {
++        return sDeveloperStatusSettings.contains(name) ? "0" : null;
++    }
++
+     private static String getEffectiveValue(Setting setting,
+             @Nullable ArrayMap<String, String> redactedSettingsMap) {
+         if (setting == null || setting.isNull()) {
+             return null;
+         }
+ 
++        if (isDeveloperStatusHidden(setting.getName())) {
++            return hiddenDeveloperValue(setting.getName());
++        }
++
+         if (!ENABLE_REDACTED_VALUE_FOR_READABLE) {
+             return setting.getValue();
+         }
+@@ -2880,6 +2943,11 @@ public class SettingsProvider extends ContentProvider {
+             if (setting == null || setting.isNull()) {
+                 return NULL_SETTING_BUNDLE;
+             }
++            if (isDeveloperStatusHidden(name)) {
++                final String hidden = hiddenDeveloperValue(name);
++                return hidden == null ? NULL_SETTING_BUNDLE
++                        : Bundle.forPair(Settings.NameValueTable.VALUE, hidden);
++            }
+             return Bundle.forPair(Settings.NameValueTable.VALUE, setting.getValue());
+         }
+         Bundle result = new Bundle();
+@@ -3115,8 +3183,11 @@ public class SettingsProvider extends ContentProvider {
+             return new MatrixCursor(projection, 0);
+         }
+ 
+-        MatrixCursor cursor = new MatrixCursor(projection, 1);
+         String value = getEffectiveValue(setting, redactedSettingsMap);
++        if (value == null) {
++            return new MatrixCursor(projection, 0);
++        }
++        MatrixCursor cursor = new MatrixCursor(projection, 1);
+         appendSettingToCursor(cursor, String.valueOf(setting.getId()), setting.getName(), value,
+                 String.valueOf(setting.isValuePreservedInRestore()));
+         return cursor;
+-- 
+2.43.0
+

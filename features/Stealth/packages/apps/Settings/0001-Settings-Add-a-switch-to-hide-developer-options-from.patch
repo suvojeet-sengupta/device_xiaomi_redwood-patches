@@ -1,0 +1,73 @@
+From bfa7770e6f2f9662e2e5f1443905d94d31e5fb8b Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 10:11:06 +0000
+Subject: [PATCH] Settings: Add a switch to hide developer options from apps
+
+Add Hide developer options from apps below Secure lock screen controls
+in the security settings. It sets Settings.Global hide_developer_status,
+on by default, which has the settings provider report developer
+options, USB debugging and wireless debugging as off to third-party
+apps.
+
+Change-Id: I6b2d8f4a1c3e5079b2d4f6a8c1e3b5d7f9a2c4e6
+---
+ res/values/hide_developer_status_strings.xml | 9 +++++++++
+ res/xml/more_security_privacy_settings.xml   | 7 +++++++
+ res/xml/security_advanced_settings.xml       | 7 +++++++
+ 3 files changed, 23 insertions(+)
+ create mode 100644 res/values/hide_developer_status_strings.xml
+
+diff --git a/res/values/hide_developer_status_strings.xml b/res/values/hide_developer_status_strings.xml
+new file mode 100644
+index 0000000..3f4ef9f
+--- /dev/null
++++ b/res/values/hide_developer_status_strings.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources>
++    <!-- Security: hide developer options and USB debugging from apps -->
++    <string name="hide_developer_status_title">Hide developer options from apps</string>
++    <string name="hide_developer_status_summary">Apps see developer options, USB debugging and wireless debugging as off</string>
++</resources>
+diff --git a/res/xml/more_security_privacy_settings.xml b/res/xml/more_security_privacy_settings.xml
+index 6b47b09..65a8e74 100644
+--- a/res/xml/more_security_privacy_settings.xml
++++ b/res/xml/more_security_privacy_settings.xml
+@@ -251,6 +251,13 @@
+         android:summary="@string/lockscreen_secure_controls_summary"
+         android:defaultValue="false"/>
+ 
++    <com.android.settings.custom.preference.GlobalSettingSwitchPreference
++        android:order="94"
++        android:key="hide_developer_status"
++        android:title="@string/hide_developer_status_title"
++        android:summary="@string/hide_developer_status_summary"
++        android:defaultValue="true"/>
++
+     <Preference
+         android:order="310"
+         android:key="binary_transparency_settings"
+diff --git a/res/xml/security_advanced_settings.xml b/res/xml/security_advanced_settings.xml
+index 55a7401..6796479 100644
+--- a/res/xml/security_advanced_settings.xml
++++ b/res/xml/security_advanced_settings.xml
+@@ -136,6 +136,13 @@
+         android:summary="@string/lockscreen_secure_controls_summary"
+         android:defaultValue="false"/>
+ 
++    <com.android.settings.custom.preference.GlobalSettingSwitchPreference
++        android:order="94"
++        android:key="hide_developer_status"
++        android:title="@string/hide_developer_status_title"
++        android:summary="@string/hide_developer_status_summary"
++        android:defaultValue="true"/>
++
+     <!-- work profile security section -->
+     <PreferenceCategory
+         android:order="310"
+-- 
+2.43.0
+

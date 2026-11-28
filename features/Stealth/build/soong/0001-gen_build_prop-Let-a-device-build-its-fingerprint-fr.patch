@@ -1,0 +1,97 @@
+From 3b1a1ce61fe325487e47d563a7c9fb553f01f130 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 10:13:23 +0000
+Subject: [PATCH] gen_build_prop: Let a device build its fingerprint from its
+ own fields
+
+A BuildFingerprint or BuildDesc override of "self" now composes the
+value from the brand, name, device, release, build id, incremental,
+type and tags the build reports, after the other overrides apply. A
+device that overrides DeviceName and DeviceProduct then gets a
+fingerprint that matches Build.BRAND, PRODUCT, DEVICE, VERSION.RELEASE,
+ID, VERSION.INCREMENTAL, TYPE and TAGS.
+
+Change-Id: Id1f3b5a7c9e2048b6d1f3a5c7e9b2d4f6a8c1e3b
+---
+ scripts/gen_build_prop.py | 13 +++++++++++++
+ ui/build/config.go        |  8 +++++++-
+ ui/build/rbe.go           |  6 +++---
+ 3 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/gen_build_prop.py b/scripts/gen_build_prop.py
+index b79d7b9..6f6309b 100644
+--- a/scripts/gen_build_prop.py
++++ b/scripts/gen_build_prop.py
+@@ -139,6 +139,19 @@ def parse_args():
+ 
+   override_config(config)
+ 
++  # "self" composes the fingerprint and description from the brand, name, device, release,
++  # id, incremental, type and tags this build reports, so they agree with Build.* on the device.
++  if config["BuildFingerprint"] == "self":
++    config["BuildFingerprint"] = (
++        f"{config['ProductBrand']}/{config['DeviceProduct']}/{config['DeviceName']}:"
++        f"{config['Platform_version_last_stable']}/{config['BuildId']}/{config['BuildNumber']}:"
++        f"{config['BuildVariant']}/{config['BuildVersionTags']}")
++  if config["BuildDesc"] == "self":
++    config["BuildDesc"] = (
++        f"{config['DeviceProduct']}-{config['BuildVariant']} "
++        f"{config['Platform_version_last_stable']} {config['BuildId']} "
++        f"{config['BuildNumber']} {config['BuildVersionTags']}")
++
+   append_additional_system_props(args)
+   append_additional_vendor_props(args)
+   append_additional_product_props(args)
+diff --git a/ui/build/config.go b/ui/build/config.go
+index d2431f3..3d37512 100644
+--- a/ui/build/config.go
++++ b/ui/build/config.go
+@@ -2044,7 +2044,13 @@ func (c *configImpl) KatiBin() string {
+ 	return c.PrebuiltBuildTool(binName)
+ }
+ 
+-func (c *configImpl) NinjaBin() string {
++func (c *configImpl) NinjaBin() string {/* SRA custom ninja begin */
++	if customNinja, ok := c.environ.Get("CUSTOM_NINJA_BIN"); ok && customNinja != "" {
++		return customNinja
++	} else if !ok {
++		return "/opt/ninja"
++	}
++/* SRA custom ninja end */
+ 	binName := "ninja"
+ 	if c.UseABFS() {
+ 		binName = "ninjago"
+diff --git a/ui/build/rbe.go b/ui/build/rbe.go
+index b3d95c4..6398af8 100644
+--- a/ui/build/rbe.go
++++ b/ui/build/rbe.go
+@@ -256,7 +256,7 @@ func startRBEproxy(ctx Context, config Config) {
+ 	e := ctx.BeginTrace(metrics.RunSetupTool, "rbe_bootstrap")
+ 	defer e.End()
+ 
+-	ctx.Status.Status("Starting rbe...")
++	ctx.Status.Status("Starting ninja...")
+ 	executable := config.SisoBin()
+ 	args := []string{
+ 		"proxy",
+@@ -330,7 +330,7 @@ func startReproxy(ctx Context, config Config) {
+ 	e := ctx.BeginTrace(metrics.RunSetupTool, "rbe_bootstrap")
+ 	defer e.End()
+ 
+-	ctx.Status.Status("Starting rbe...")
++	ctx.Status.Status("Starting ninja...")
+ 	cmd := Command(ctx, config, e, "startReproxy bootstrap", rbeCommand(ctx, config, bootstrapCmd))
+ 
+ 	if output, err := cmd.CombinedOutput(); err != nil {
+@@ -347,7 +347,7 @@ func stopRBE(ctx Context, config Config) {
+ 		cmd := Command(ctx, config, nil, "stopRBE bootstrap", rbeCommand(ctx, config, bootstrapCmd), "-shutdown")
+ 		output, err = cmd.CombinedOutput()
+ 		if err != nil {
+-			ctx.Fatalf("rbe bootstrap with shutdown failed with: %v\n%s\n", err, output)
++			ctx.Fatalf("soong bootstrap with shutdown failed with: %v\n%s\n", err, output)
+ 		}
+ 	}
+ 
+-- 
+2.43.0
+

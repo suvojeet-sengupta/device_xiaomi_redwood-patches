@@ -55,6 +55,14 @@ A patch sits at the path of the project it applies to, for example
 - `SoundTile`: a Sound quick settings tile that moves the ringer from ring
   to vibrate to silent on each tap and opens the sound settings on a long
   press.
+- `Stealth`: keeps detection apps from tripping on the ROM itself.
+  Hide developer options from apps (on by default, below Secure lock screen
+  controls) has the settings provider report developer options, USB and
+  wireless debugging as off and verify-apps-over-USB as unset to
+  third-party apps, on every read path. Ignore window secure flags moves
+  into the window manager, so apps keep the FLAG_SECURE they set. A
+  BuildFingerprint/BuildDesc override of `self` makes the build compose
+  them from its own fields; the device tree uses it.
 - `TouchModes`: makes High touch polling rate in Settings > Display read
   the Goodix driver's "480HZ" right, and adds a Touch game mode switch
   below it. The device tree applies both to the touch controller.

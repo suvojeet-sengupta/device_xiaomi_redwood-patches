@@ -1,0 +1,97 @@
+From 9f6d5db159b5d6a6029177bfb1bed86619333a4f Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 10:08:10 +0000
+Subject: [PATCH 1/2] wm: Ignore window secure flags in the window manager
+
+Ignore window secure flags used to drop FLAG_SECURE from the window in
+the app process, so an app that set the flag and read it back found it
+missing. Leave the app its flag and have the window manager treat secure
+windows as capturable instead, the way disable_secure_windows already
+does on debuggable builds. It follows the setting live.
+
+Change-Id: I3c9e7a5b1d2f4068a9c1e3b5d7f9a1c3e5b7d9f1
+---
+ core/java/android/view/Window.java            |  5 -----
+ .../server/wm/WindowManagerService.java       | 21 ++++++++++---------
+ 2 files changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/core/java/android/view/Window.java b/core/java/android/view/Window.java
+index d282811c6..b46b1831a 100644
+--- a/core/java/android/view/Window.java
++++ b/core/java/android/view/Window.java
+@@ -54,7 +54,6 @@ import android.os.Build;
+ import android.os.Bundle;
+ import android.os.Handler;
+ import android.os.IBinder;
+-import android.provider.Settings;
+ import android.transition.Scene;
+ import android.transition.Transition;
+ import android.transition.TransitionManager;
+@@ -1368,10 +1367,6 @@ public abstract class Window {
+      * @see #clearFlags
+      */
+     public void setFlags(int flags, int mask) {
+-        if ((mask & FLAG_SECURE) != 0 && Settings.Global.getInt(mContext.getContentResolver(),
+-                Settings.Global.WINDOW_IGNORE_SECURE, 0) == 1) {
+-            mask &= ~FLAG_SECURE;
+-        }
+         final WindowManager.LayoutParams attrs = getAttributes();
+         attrs.flags = (attrs.flags&~mask) | (flags&mask);
+         mForcedWindowFlags |= mask;
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index b7c7ea467..18c1e2e4e 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -844,6 +844,8 @@ public class WindowManagerService extends IWindowManager.Stub
+                 Settings.Secure.getUriFor(Settings.Secure.IMMERSIVE_MODE_CONFIRMATIONS);
+         private final Uri mDisableSecureWindowsUri =
+                 Settings.Secure.getUriFor(Settings.Secure.DISABLE_SECURE_WINDOWS);
++        private final Uri mIgnoreSecureWindowsUri =
++                Settings.Global.getUriFor(Settings.Global.WINDOW_IGNORE_SECURE);
+         private final Uri mMagnifyImeEnabledUri = Settings.Secure.getUriFor(
+                 Settings.Secure.ACCESSIBILITY_MAGNIFICATION_MAGNIFY_NAV_AND_IME);
+         private final Uri mPolicyControlUri =
+@@ -878,6 +880,8 @@ public class WindowManagerService extends IWindowManager.Stub
+                     UserHandle.USER_ALL);
+             resolver.registerContentObserver(mDisableSecureWindowsUri, false, this,
+                     UserHandle.USER_ALL);
++            resolver.registerContentObserver(mIgnoreSecureWindowsUri, false, this,
++                    UserHandle.USER_ALL);
+             resolver.registerContentObserver(mMagnifyImeEnabledUri, false, this,
+                     UserHandle.USER_ALL);
+             resolver.registerContentObserver(mPolicyControlUri, false, this, UserHandle.USER_ALL);
+@@ -936,7 +940,7 @@ public class WindowManagerService extends IWindowManager.Stub
+                 return;
+             }
+ 
+-            if (mDisableSecureWindowsUri.equals(uri)) {
++            if (mDisableSecureWindowsUri.equals(uri) || mIgnoreSecureWindowsUri.equals(uri)) {
+                 updateDisableSecureWindows();
+                 return;
+             }
+@@ -1058,16 +1062,13 @@ public class WindowManagerService extends IWindowManager.Stub
+         }
+ 
+         void updateDisableSecureWindows() {
+-            if (!SystemProperties.getBoolean(SYSTEM_DEBUGGABLE, false)) {
+-                return;
+-            }
+-
+-            boolean disableSecureWindows;
+-            try {
+-                disableSecureWindows = Settings.Secure.getIntForUser(mContext.getContentResolver(),
++            // Ignore window secure flags: windows keep FLAG_SECURE in their own attributes, but
++            // the screen may still be captured
++            boolean disableSecureWindows = Settings.Global.getInt(mContext.getContentResolver(),
++                    Settings.Global.WINDOW_IGNORE_SECURE, 0) != 0;
++            if (!disableSecureWindows && SystemProperties.getBoolean(SYSTEM_DEBUGGABLE, false)) {
++                disableSecureWindows = Settings.Secure.getInt(mContext.getContentResolver(),
+                         Settings.Secure.DISABLE_SECURE_WINDOWS, 0) != 0;
+-            } catch (Settings.SettingNotFoundException e) {
+-                disableSecureWindows = false;
+             }
+             if (mDisableSecureWindows == disableSecureWindows) {
+                 return;
+-- 
+2.43.0
+
