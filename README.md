@@ -36,6 +36,11 @@ A patch sits at the path of the project it applies to, for example
   stops background apps from holding wakelocks or using the network while
   the phone is idle; Play services push still gets through. The device tree
   marks the feature supported and leaves it off by default.
+- `SecureLockscreen`: a Secure lock screen controls switch below Ignore
+  window secure flags in the security settings. While the phone is locked
+  with a PIN, pattern or password, the power menu stays closed and the
+  internet, Wi-Fi, mobile data, Bluetooth, airplane mode, hotspot, location
+  and NFC tiles ask for an unlock first.
 - `SmartCharging`: Smart charging and Force fast charging switches in
   Settings > Battery. Smart charging is the charger firmware's own smart
   charging and is on by default; force fast charging drops the thermal

@@ -1,0 +1,195 @@
+From e18f4527f690a2cac3460c876a753e8905e0371b Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 07:17:47 +0000
+Subject: [PATCH] SystemUI: Add secure lock screen controls
+
+While Settings.Secure lockscreen_secure_controls is 1 and the device is
+locked behind a PIN, pattern or password, don't open the power menu,
+and have the internet, Wi-Fi, mobile data, Bluetooth, airplane mode,
+hotspot, location and NFC tiles ask for an unlock before a click or
+toggle goes through, for both the legacy and the new tile classes. A
+locked phone then can't be switched off or taken off the network.
+
+Change-Id: I68af60c8212efae76b125a403460330ed7204b18
+---
+ .../GlobalActionsDialogLite.java              |  6 +++
+ .../systemui/qs/tileimpl/QSTileImpl.java      |  9 ++++
+ .../ui/viewmodel/QSTileViewModelAdapter.kt    | 17 +++++++
+ .../util/LockscreenSecureControls.java        | 45 +++++++++++++++++++
+ 4 files changed, 77 insertions(+)
+ create mode 100644 packages/SystemUI/src/com/android/systemui/util/LockscreenSecureControls.java
+
+diff --git a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialogLite.java b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialogLite.java
+index 8b484bb43..7b90c30ca 100644
+--- a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialogLite.java
++++ b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialogLite.java
+@@ -116,6 +116,7 @@ import com.android.internal.util.EmergencyAffordanceManager;
+ import com.android.internal.util.ScreenshotHelper;
+ import com.android.internal.widget.LockPatternUtils;
+ import com.android.keyguard.KeyguardUpdateMonitor;
++import com.android.systemui.util.LockscreenSecureControls;
+ import com.android.systemui.Flags;
+ import com.android.systemui.FontStyles;
+ import com.android.systemui.MultiListLayout.MultiListAdapter;
+@@ -611,6 +612,11 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
+     }
+ 
+     private void handleShow(@Nullable Expandable expandable, int displayId) {
++        // Secure lock screen controls: no power menu while the device is locked
++        if (mKeyguardShowing && LockscreenSecureControls.isLocked(mContext)) {
++            mWindowManagerFuncs.onGlobalActionsHidden();
++            return;
++        }
+         SystemUIDialog dialog = createDialog(displayId);
+         prepareDialog();
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSTileImpl.java b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSTileImpl.java
+index 67d901ec8..ca7e2b7d8 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSTileImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSTileImpl.java
+@@ -56,6 +56,7 @@ import com.android.internal.logging.UiEventLogger;
+ import com.android.settingslib.RestrictedLockUtils;
+ import com.android.settingslib.RestrictedLockUtilsInternal;
+ import com.android.settingslib.graph.SignalDrawable;
++import com.android.systemui.util.LockscreenSecureControls;
+ import com.android.systemui.Dumpable;
+ import com.android.systemui.Flags;
+ import com.android.systemui.animation.ActivityTransitionAnimator;
+@@ -293,6 +294,10 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
+ 
+     @Override
+     public void click(@Nullable Expandable expandable) {
++        if (LockscreenSecureControls.tileNeedsUnlock(mContext, mTileSpec)) {
++            mActivityStarter.postQSRunnableDismissingKeyguard(() -> click(expandable));
++            return;
++        }
+         mMetricsLogger.write(populate(new LogMaker(ACTION_QS_CLICK).setType(TYPE_ACTION)
+                 .addTaggedData(FIELD_STATUS_BAR_STATE,
+                         mStatusBarStateController.getState())));
+@@ -308,6 +313,10 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
+ 
+     @Override
+     public void secondaryClick(@Nullable Expandable expandable) {
++        if (LockscreenSecureControls.tileNeedsUnlock(mContext, mTileSpec)) {
++            mActivityStarter.postQSRunnableDismissingKeyguard(() -> secondaryClick(expandable));
++            return;
++        }
+         mMetricsLogger.write(populate(new LogMaker(ACTION_QS_SECONDARY_CLICK).setType(TYPE_ACTION)
+                 .addTaggedData(FIELD_STATUS_BAR_STATE,
+                         mStatusBarStateController.getState())));
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/base/ui/viewmodel/QSTileViewModelAdapter.kt b/packages/SystemUI/src/com/android/systemui/qs/tiles/base/ui/viewmodel/QSTileViewModelAdapter.kt
+index ff9c32cbe..e89cc426d 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tiles/base/ui/viewmodel/QSTileViewModelAdapter.kt
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/base/ui/viewmodel/QSTileViewModelAdapter.kt
+@@ -25,6 +25,7 @@ import com.android.systemui.animation.Expandable
+ import com.android.systemui.common.shared.model.Icon
+ import com.android.systemui.dagger.qualifiers.MainImmediate
+ import com.android.systemui.dagger.qualifiers.UiBackground
++import com.android.systemui.plugins.ActivityStarter
+ import com.android.systemui.plugins.qs.QSTile
+ import com.android.systemui.plugins.qs.TileDetailsViewModel
+ import com.android.systemui.qs.QSHost
+@@ -35,6 +36,7 @@ import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+ import com.android.systemui.qs.tiles.base.shared.model.QSTileState
+ import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+ import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
++import com.android.systemui.util.LockscreenSecureControls
+ import dagger.assisted.Assisted
+ import dagger.assisted.AssistedFactory
+ import dagger.assisted.AssistedInject
+@@ -58,6 +60,7 @@ class QSTileViewModelAdapter
+ constructor(
+     @MainImmediate private val applicationScope: CoroutineScope,
+     private val qsHost: QSHost,
++    private val activityStarter: ActivityStarter,
+     @Assisted private val qsTileViewModel: QSTileViewModel,
+     @UiBackground private val uiBgDispatcher: CoroutineDispatcher,
+ ) : QSTile, Dumpable {
+@@ -135,12 +138,20 @@ constructor(
+     }
+ 
+     override fun click(expandable: Expandable?) {
++        if (needsUnlock()) {
++            activityStarter.postQSRunnableDismissingKeyguard { click(expandable) }
++            return
++        }
+         if (isActionSupported(QSTileState.UserAction.CLICK)) {
+             qsTileViewModel.onActionPerformed(QSTileUserAction.Click(expandable))
+         }
+     }
+ 
+     override fun secondaryClick(expandable: Expandable?) {
++        if (needsUnlock()) {
++            activityStarter.postQSRunnableDismissingKeyguard { secondaryClick(expandable) }
++            return
++        }
+         if (isActionSupported(QSTileState.UserAction.TOGGLE_CLICK)) {
+             qsTileViewModel.onActionPerformed(QSTileUserAction.ToggleClick(expandable))
+         }
+@@ -152,6 +163,12 @@ constructor(
+         }
+     }
+ 
++    private fun needsUnlock(): Boolean =
++        LockscreenSecureControls.tileNeedsUnlock(
++            qsHost.context,
++            qsTileViewModel.config.tileSpec.spec,
++        )
++
+     private fun isActionSupported(action: QSTileState.UserAction): Boolean =
+         qsTileViewModel.currentState?.supportedActions?.contains(action) == true
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/util/LockscreenSecureControls.java b/packages/SystemUI/src/com/android/systemui/util/LockscreenSecureControls.java
+new file mode 100644
+index 000000000..381ed1829
+--- /dev/null
++++ b/packages/SystemUI/src/com/android/systemui/util/LockscreenSecureControls.java
+@@ -0,0 +1,45 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.systemui.util;
++
++import android.app.ActivityManager;
++import android.app.KeyguardManager;
++import android.content.Context;
++import android.os.UserHandle;
++import android.provider.Settings;
++
++import java.util.Set;
++
++/**
++ * Secure lock screen controls: while the device is locked with a PIN, pattern or password, keep
++ * the power menu closed and have the network, Bluetooth, airplane mode and location tiles ask for
++ * an unlock first, so a locked phone can't be cut off or switched off.
++ */
++public final class LockscreenSecureControls {
++
++    /** Settings.Secure key, 1 turns the secure controls on. */
++    public static final String SETTING = "lockscreen_secure_controls";
++
++    private static final Set<String> TILES = Set.of(
++            "internet", "wifi", "cell", "bt", "airplane", "hotspot", "location", "nfc");
++
++    private LockscreenSecureControls() {}
++
++    /** Whether the secure controls are on and the device is locked behind a credential. */
++    public static boolean isLocked(Context context) {
++        if (Settings.Secure.getIntForUser(context.getContentResolver(), SETTING, 0,
++                UserHandle.USER_CURRENT) != 1) {
++            return false;
++        }
++        final KeyguardManager km = context.getSystemService(KeyguardManager.class);
++        return km != null && km.isKeyguardLocked()
++                && km.isDeviceSecure(ActivityManager.getCurrentUser());
++    }
++
++    /** Whether a click on the tile with this spec has to wait for an unlock. */
++    public static boolean tileNeedsUnlock(Context context, String spec) {
++        return spec != null && TILES.contains(spec) && isLocked(context);
++    }
++}
+-- 
+2.43.0
+

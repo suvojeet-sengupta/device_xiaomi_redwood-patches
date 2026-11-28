@@ -1,0 +1,73 @@
+From 42a73e131cc1eca41fa719fa0007a88e32dfb1ab Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 07:18:26 +0000
+Subject: [PATCH] Settings: Add a secure lock screen controls switch
+
+Add a switch below Ignore window secure flags in the security settings
+that sets Settings.Secure lockscreen_secure_controls. SystemUI then
+keeps the power menu closed and has the network, Bluetooth, airplane
+mode, hotspot, location and NFC tiles ask for an unlock while the
+phone is locked.
+
+Change-Id: Id4a2908595adce8234a0f96c1751278417b891f3
+---
+ res/values/lockscreen_secure_controls_strings.xml | 9 +++++++++
+ res/xml/more_security_privacy_settings.xml        | 7 +++++++
+ res/xml/security_advanced_settings.xml            | 7 +++++++
+ 3 files changed, 23 insertions(+)
+ create mode 100644 res/values/lockscreen_secure_controls_strings.xml
+
+diff --git a/res/values/lockscreen_secure_controls_strings.xml b/res/values/lockscreen_secure_controls_strings.xml
+new file mode 100644
+index 0000000..84ef61a
+--- /dev/null
++++ b/res/values/lockscreen_secure_controls_strings.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     SPDX-License-Identifier: Apache-2.0
++-->
++<resources>
++    <!-- Security: secure lock screen controls -->
++    <string name="lockscreen_secure_controls_title">Secure lock screen controls</string>
++    <string name="lockscreen_secure_controls_summary">While the phone is locked, hide the power menu and ask to unlock before the internet, Bluetooth, airplane mode, hotspot, location and NFC tiles change</string>
++</resources>
+diff --git a/res/xml/more_security_privacy_settings.xml b/res/xml/more_security_privacy_settings.xml
+index 6dc0d0a..6b47b09 100644
+--- a/res/xml/more_security_privacy_settings.xml
++++ b/res/xml/more_security_privacy_settings.xml
+@@ -244,6 +244,13 @@
+         android:summary="@string/ignore_window_secure_summary"
+         android:defaultValue="false"/>
+ 
++    <com.android.settings.custom.preference.SecureSettingSwitchPreference
++        android:order="93"
++        android:key="lockscreen_secure_controls"
++        android:title="@string/lockscreen_secure_controls_title"
++        android:summary="@string/lockscreen_secure_controls_summary"
++        android:defaultValue="false"/>
++
+     <Preference
+         android:order="310"
+         android:key="binary_transparency_settings"
+diff --git a/res/xml/security_advanced_settings.xml b/res/xml/security_advanced_settings.xml
+index decd568..55a7401 100644
+--- a/res/xml/security_advanced_settings.xml
++++ b/res/xml/security_advanced_settings.xml
+@@ -129,6 +129,13 @@
+         android:summary="@string/ignore_window_secure_summary"
+         android:defaultValue="false"/>
+ 
++    <com.android.settings.custom.preference.SecureSettingSwitchPreference
++        android:order="93"
++        android:key="lockscreen_secure_controls"
++        android:title="@string/lockscreen_secure_controls_title"
++        android:summary="@string/lockscreen_secure_controls_summary"
++        android:defaultValue="false"/>
++
+     <!-- work profile security section -->
+     <PreferenceCategory
+         android:order="310"
+-- 
+2.43.0
+
