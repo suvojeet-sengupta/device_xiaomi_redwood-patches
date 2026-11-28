@@ -48,6 +48,9 @@ A patch sits at the path of the project it applies to, for example
   the phone charges at full speed but runs hotter. Turning one on turns the
   other off. The device tree writes them to the charger and restores them
   after a reboot.
+- `SoundTile`: a Sound quick settings tile that moves the ringer from ring
+  to vibrate to silent on each tap and opens the sound settings on a long
+  press.
 - `TouchModes`: makes High touch polling rate in Settings > Display read
   the Goodix driver's "480HZ" right, and adds a Touch game mode switch
   below it. The device tree applies both to the touch controller.

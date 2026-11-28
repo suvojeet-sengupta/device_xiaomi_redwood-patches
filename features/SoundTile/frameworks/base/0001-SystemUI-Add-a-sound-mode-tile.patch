@@ -1,0 +1,257 @@
+From 68e93cf7811256a13b46481a1c962a53e752af65 Mon Sep 17 00:00:00 2001
+From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
+Date: Sat, 28 Nov 2026 07:27:16 +0000
+Subject: [PATCH] SystemUI: Add a sound mode tile
+
+Add a Sound tile that moves the ringer from ring to vibrate to silent
+on each tap, like the volume panel's ringer button, shows the mode
+with its icon, and opens the sound settings on a long press. It's in
+the tile list as sound.
+
+Change-Id: I467504b010fc2a9c721b1fa5e388a9b59f1cb8d9
+---
+ packages/SystemUI/res/values/config.xml       |   2 +-
+ .../SystemUI/res/values/custom_strings.xml    |   6 +
+ .../android/systemui/custom/CustomModule.kt   |  23 +++
+ .../android/systemui/qs/tiles/SoundTile.java  | 146 ++++++++++++++++++
+ 4 files changed, 176 insertions(+), 1 deletion(-)
+ create mode 100644 packages/SystemUI/src/com/android/systemui/qs/tiles/SoundTile.java
+
+diff --git a/packages/SystemUI/res/values/config.xml b/packages/SystemUI/res/values/config.xml
+index a467f97e3..d1734d70c 100644
+--- a/packages/SystemUI/res/values/config.xml
++++ b/packages/SystemUI/res/values/config.xml
+@@ -107,7 +107,7 @@
+ 
+     <!-- Tiles native to System UI. Order should match "quick_settings_tiles_default" -->
+     <string name="quick_settings_tiles_stock" translatable="false">
+-        internet,wifi,bt,flashlight,dnd,modes_dnd,alarm,airplane,nfc,controls,wallet,rotation,battery,cast,screenrecord,mictoggle,cameratoggle,location,hotspot,inversion,saver,dark,work,night,reverse,reduce_brightness,qr_code_scanner,onehanded,color_correction,font_scaling,record_issue,hearing_devices,notes,desktopeffects,cell,caffeine,heads_up,sync,ambient_display,usb_tether,aod,powershare,reading_mode,vpn,auto_brightness,data_switch
++        internet,wifi,bt,flashlight,dnd,modes_dnd,alarm,airplane,nfc,controls,wallet,rotation,battery,cast,screenrecord,mictoggle,cameratoggle,location,hotspot,inversion,saver,dark,work,night,reverse,reduce_brightness,qr_code_scanner,onehanded,color_correction,font_scaling,record_issue,hearing_devices,notes,desktopeffects,cell,caffeine,heads_up,sync,ambient_display,usb_tether,aod,powershare,reading_mode,vpn,auto_brightness,data_switch,sound
+     </string>
+ 
+     <!-- The tiles to display in QuickSettings -->
+diff --git a/packages/SystemUI/res/values/custom_strings.xml b/packages/SystemUI/res/values/custom_strings.xml
+index a790c1042..4ba95d694 100644
+--- a/packages/SystemUI/res/values/custom_strings.xml
++++ b/packages/SystemUI/res/values/custom_strings.xml
+@@ -121,4 +121,10 @@
+     <string name="flashlight_strength_title">Flashlight Strength</string>
+     <string name="flashlight_strength_turn_off">Turn off</string>
+     <string name="flashlight_strength_turn_on">Turn on</string>
++
++    <!-- Sound mode tile -->
++    <string name="quick_settings_sound_label">Sound</string>
++    <string name="quick_settings_sound_ring">Ring</string>
++    <string name="quick_settings_sound_vibrate">Vibrate</string>
++    <string name="quick_settings_sound_silent">Silent</string>
+ </resources>
+diff --git a/packages/SystemUI/src/com/android/systemui/custom/CustomModule.kt b/packages/SystemUI/src/com/android/systemui/custom/CustomModule.kt
+index 1c889ad23..dfab58396 100644
+--- a/packages/SystemUI/src/com/android/systemui/custom/CustomModule.kt
++++ b/packages/SystemUI/src/com/android/systemui/custom/CustomModule.kt
+@@ -28,6 +28,7 @@ import com.android.systemui.qs.tiles.DataSwitchTile
+ import com.android.systemui.qs.tiles.HeadsUpTile
+ import com.android.systemui.qs.tiles.PowerShareTile
+ import com.android.systemui.qs.tiles.ReadingModeTile
++import com.android.systemui.qs.tiles.SoundTile
+ import com.android.systemui.qs.tiles.SyncTile
+ import com.android.systemui.qs.tiles.UsbTetherTile
+ import com.android.systemui.qs.tiles.VpnTile
+@@ -97,6 +98,12 @@ interface CustomModule {
+     @StringKey(SyncTile.TILE_SPEC)
+     fun bindSyncTile(syncTile: SyncTile): QSTileImpl<*>
+ 
++    /** Inject SoundTile into tileMap in QSModule */
++    @Binds
++    @IntoMap
++    @StringKey(SoundTile.TILE_SPEC)
++    fun bindSoundTile(soundTile: SoundTile): QSTileImpl<*>
++
+     /** Inject UsbTetherTile into tileMap in QSModule */
+     @Binds
+     @IntoMap
+@@ -116,6 +123,7 @@ interface CustomModule {
+         const val CAFFEINE_TILE_SPEC = "caffeine"
+         const val DATA_SWITCH_TILE_SPEC = "data_switch"
+         const val HEADS_UP_TILE_SPEC = "heads_up"
++        const val SOUND_TILE_SPEC = "sound"
+         const val POWERSHARE_TILE_SPEC = "powershare"
+         const val READING_MODE_TILE_SPEC = "reading_mode"
+         const val SYNC_TILE_SPEC = "sync"
+@@ -212,6 +220,21 @@ interface CustomModule {
+                 category = TileCategory.ACCESSIBILITY,
+             )
+ 
++        @Provides
++        @IntoMap
++        @StringKey(SOUND_TILE_SPEC)
++        fun provideSoundTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
++            QSTileConfig(
++                tileSpec = TileSpec.create(SOUND_TILE_SPEC),
++                uiConfig =
++                    QSTileUIConfig.Resource(
++                        iconRes = R.drawable.ic_volume_ringer,
++                        labelRes = R.string.quick_settings_sound_label
++                    ),
++                instanceId = uiEventLogger.getNewInstanceId(),
++                category = TileCategory.UTILITIES,
++            )
++
+         @Provides
+         @IntoMap
+         @StringKey(POWERSHARE_TILE_SPEC)
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/SoundTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/SoundTile.java
+new file mode 100644
+index 000000000..b70e8eeb8
+--- /dev/null
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/SoundTile.java
+@@ -0,0 +1,146 @@
++/*
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.android.systemui.qs.tiles;
++
++import static com.android.internal.logging.MetricsLogger.VIEW_UNKNOWN;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.media.AudioManager;
++import android.os.Handler;
++import android.os.Looper;
++import android.provider.Settings;
++import android.service.quicksettings.Tile;
++
++import androidx.annotation.Nullable;
++
++import com.android.internal.logging.MetricsLogger;
++import com.android.systemui.animation.Expandable;
++import com.android.systemui.dagger.qualifiers.Background;
++import com.android.systemui.dagger.qualifiers.Main;
++import com.android.systemui.plugins.ActivityStarter;
++import com.android.systemui.plugins.FalsingManager;
++import com.android.systemui.plugins.qs.QSTile.State;
++import com.android.systemui.plugins.statusbar.StatusBarStateController;
++import com.android.systemui.qs.QSHost;
++import com.android.systemui.qs.QsEventLogger;
++import com.android.systemui.qs.logging.QSLogger;
++import com.android.systemui.qs.tileimpl.QSTileImpl;
++import com.android.systemui.res.R;
++
++import javax.inject.Inject;
++
++/** Quick settings tile: sound, vibrate or silent, one tap moves to the next. */
++public class SoundTile extends QSTileImpl<State> {
++
++    public static final String TILE_SPEC = "sound";
++
++    private static final Intent SOUND_SETTINGS = new Intent(Settings.ACTION_SOUND_SETTINGS);
++
++    private final AudioManager mAudioManager;
++    private boolean mListening;
++
++    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            refreshState();
++        }
++    };
++
++    @Inject
++    public SoundTile(
++            QSHost host,
++            QsEventLogger uiEventLogger,
++            @Background Looper backgroundLooper,
++            @Main Handler mainHandler,
++            FalsingManager falsingManager,
++            MetricsLogger metricsLogger,
++            StatusBarStateController statusBarStateController,
++            ActivityStarter activityStarter,
++            QSLogger qsLogger
++    ) {
++        super(host, uiEventLogger, backgroundLooper, mainHandler, falsingManager, metricsLogger,
++                statusBarStateController, activityStarter, qsLogger);
++        mAudioManager = mContext.getSystemService(AudioManager.class);
++    }
++
++    @Override
++    public State newTileState() {
++        return new State();
++    }
++
++    @Override
++    protected void handleClick(@Nullable Expandable expandable) {
++        final int next;
++        switch (mAudioManager.getRingerModeInternal()) {
++            case AudioManager.RINGER_MODE_NORMAL:
++                next = AudioManager.RINGER_MODE_VIBRATE;
++                break;
++            case AudioManager.RINGER_MODE_VIBRATE:
++                next = AudioManager.RINGER_MODE_SILENT;
++                break;
++            default:
++                next = AudioManager.RINGER_MODE_NORMAL;
++                break;
++        }
++        mAudioManager.setRingerModeInternal(next);
++        refreshState();
++    }
++
++    @Override
++    public Intent getLongClickIntent() {
++        return SOUND_SETTINGS;
++    }
++
++    @Override
++    protected void handleUpdateState(State state, Object arg) {
++        state.label = mContext.getString(R.string.quick_settings_sound_label);
++        switch (mAudioManager.getRingerModeInternal()) {
++            case AudioManager.RINGER_MODE_NORMAL:
++                state.icon = maybeLoadResourceIcon(R.drawable.ic_volume_ringer);
++                state.secondaryLabel = mContext.getString(R.string.quick_settings_sound_ring);
++                state.state = Tile.STATE_ACTIVE;
++                break;
++            case AudioManager.RINGER_MODE_VIBRATE:
++                state.icon = maybeLoadResourceIcon(R.drawable.ic_volume_ringer_vibrate);
++                state.secondaryLabel = mContext.getString(R.string.quick_settings_sound_vibrate);
++                state.state = Tile.STATE_ACTIVE;
++                break;
++            default:
++                state.icon = maybeLoadResourceIcon(R.drawable.ic_volume_ringer_mute);
++                state.secondaryLabel = mContext.getString(R.string.quick_settings_sound_silent);
++                state.state = Tile.STATE_INACTIVE;
++                break;
++        }
++        state.contentDescription = state.label + ", " + state.secondaryLabel;
++    }
++
++    @Override
++    public CharSequence getTileLabel() {
++        return mContext.getString(R.string.quick_settings_sound_label);
++    }
++
++    @Override
++    public int getMetricsCategory() {
++        return VIEW_UNKNOWN;
++    }
++
++    @Override
++    public void handleSetListening(boolean listening) {
++        if (mListening == listening) return;
++        mListening = listening;
++        if (listening) {
++            final IntentFilter filter = new IntentFilter();
++            filter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
++            filter.addAction(AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION);
++            mContext.registerReceiver(mReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
++            refreshState();
++        } else {
++            mContext.unregisterReceiver(mReceiver);
++        }
++    }
++}
+-- 
+2.43.0
+
