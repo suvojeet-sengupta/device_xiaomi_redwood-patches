@@ -1,4 +1,4 @@
-From f7403c624a66e5638325972693f60220c6e73046 Mon Sep 17 00:00:00 2001
+From 7d75a5cd30e76b1a692a178a8c19f35efd3eaffb Mon Sep 17 00:00:00 2001
 From: suvojeet-sengupta <suvojitsengupta21@gmail.com>
 Date: Fri, 27 Nov 2026 18:55:05 +0000
 Subject: [PATCH] Settings: Add App lock to the apps settings
@@ -17,10 +17,10 @@ Change-Id: Iefff525922778bbb04024b23fc8f34dfbc30cca9
  AndroidManifest.xml                           |   5 +
  res/values/app_lock_strings.xml               |  12 ++
  res/xml/apps.xml                              |  11 ++
- .../applock/AppLockPreferenceController.java  |  26 +++
+ .../applock/AppLockPreferenceController.java  |  32 ++++
  .../applock/AppLockSettingsActivity.java      |  31 ++++
  .../applock/AppLockSettingsFragment.java      | 159 ++++++++++++++++++
- 6 files changed, 244 insertions(+)
+ 6 files changed, 250 insertions(+)
  create mode 100644 res/values/app_lock_strings.xml
  create mode 100644 src/com/android/settings/applications/applock/AppLockPreferenceController.java
  create mode 100644 src/com/android/settings/applications/applock/AppLockSettingsActivity.java
@@ -61,7 +61,7 @@ index 0000000..9f9ddec
 +    <string name="app_lock_confirm_unlock">Unlock <xliff:g id="app">%1$s</xliff:g></string>
 +</resources>
 diff --git a/res/xml/apps.xml b/res/xml/apps.xml
-index b687497..60eeb15 100644
+index b687497..b090996 100644
 --- a/res/xml/apps.xml
 +++ b/res/xml/apps.xml
 @@ -75,6 +75,17 @@
@@ -75,7 +75,7 @@ index b687497..60eeb15 100644
 +        android:order="-994"
 +        settings:controller="com.android.settings.applications.applock.AppLockPreferenceController">
 +        <intent
-+            android:targetPackage="${applicationId}"
++            android:targetPackage="com.android.settings"
 +            android:targetClass="com.android.settings.applications.applock.AppLockSettingsActivity"/>
 +    </Preference>
 +
@@ -84,10 +84,10 @@ index b687497..60eeb15 100644
          android:order="10"/>
 diff --git a/src/com/android/settings/applications/applock/AppLockPreferenceController.java b/src/com/android/settings/applications/applock/AppLockPreferenceController.java
 new file mode 100644
-index 0000000..c8ffd58
+index 0000000..30f71b5
 --- /dev/null
 +++ b/src/com/android/settings/applications/applock/AppLockPreferenceController.java
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,32 @@
 +/*
 + * SPDX-License-Identifier: Apache-2.0
 + */
@@ -96,6 +96,7 @@ index 0000000..c8ffd58
 +
 +import android.content.Context;
 +
++import com.android.settings.R;
 +import com.android.settings.core.BasePreferenceController;
 +
 +/** Shows the App lock entry when the build has Android's App Lock turned on. */
@@ -112,6 +113,11 @@ index 0000000..c8ffd58
 +    @Override
 +    public int getAvailabilityStatus() {
 +        return isAppLockEnabled() ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
++    }
++
++    @Override
++    public int getSliceHighlightMenuRes() {
++        return R.string.menu_key_apps;
 +    }
 +}
 diff --git a/src/com/android/settings/applications/applock/AppLockSettingsActivity.java b/src/com/android/settings/applications/applock/AppLockSettingsActivity.java
